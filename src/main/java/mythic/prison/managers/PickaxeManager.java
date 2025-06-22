@@ -10,6 +10,9 @@ import net.minestom.server.item.ItemStack;
 import net.minestom.server.item.Material;
 import net.minestom.server.event.player.PlayerSwapItemEvent;
 import net.minestom.server.tag.Tag;
+import java.util.concurrent.CompletableFuture;
+import mythic.prison.player.Profile;
+import mythic.prison.gui.PickaxeEnchantGUI;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -83,10 +86,10 @@ public class PickaxeManager {
         try {
             // Initialize player data first
             initializePlayer(player);
-            
+
             // Update the player's experience bar to show pickaxe progress
             updatePlayerExpBar(player);
-            
+
             System.out.println("[PickaxeManager] Initialized exp bar for player: " + player.getUsername());
         } catch (Exception e) {
             System.err.println("[PickaxeManager] Error initializing exp bar for " + player.getUsername() + ": " + e.getMessage());
@@ -99,14 +102,14 @@ public class PickaxeManager {
             int currentLevel = getPickaxeLevel(player);
             long currentExp = getPickaxeExp(player);
             long expRequired = getExpRequired(currentLevel);
-            
+
             // Calculate progress (0.0 to 1.0)
             float progress = Math.min(1.0f, (float) currentExp / expRequired);
-            
+
             // Set player's experience bar to show pickaxe progress
             player.setLevel(currentLevel);
             player.setExp(progress);
-            
+
         } catch (Exception e) {
             System.err.println("[PickaxeManager] Error updating exp bar for " + player.getUsername() + ": " + e.getMessage());
             e.printStackTrace();
@@ -124,194 +127,194 @@ public class PickaxeManager {
                     .lore(buildPickaxeLore(player))
                     .build();
 
-        // Add tags to identify this as a soulbound pickaxe
-        pickaxe = pickaxe.withTag(PICKAXE_LEVEL_TAG, getPickaxeLevel(player))
-                .withTag(PICKAXE_EXP_TAG, getPickaxeExp(player))
-                .withTag(SOULBOUND_TAG, true);
+            // Add tags to identify this as a soulbound pickaxe
+            pickaxe = pickaxe.withTag(PICKAXE_LEVEL_TAG, getPickaxeLevel(player))
+                    .withTag(PICKAXE_EXP_TAG, getPickaxeExp(player))
+                    .withTag(SOULBOUND_TAG, true);
 
-        // Always place in slot 0 (first slot)
-        player.getInventory().setItemStack(0, pickaxe);
+            // Always place in slot 0 (first slot)
+            player.getInventory().setItemStack(0, pickaxe);
 
-        // Removed the console message: System.out.println("[PickaxeManager] Gave soulbound pickaxe to: " + player.getUsername());
+            // Removed the console message: System.out.println("[PickaxeManager] Gave soulbound pickaxe to: " + player.getUsername());
 
-} catch (Exception e) {
-    System.err.println("[PickaxeManager] Error giving soulbound pickaxe to " + player.getUsername() + ": " + e.getMessage());
-    e.printStackTrace();
-}
-}
-
-private java.util.List<Component> buildPickaxeLore(Player player) {
-    java.util.List<Component> lore = new java.util.ArrayList<>();
-    
-    // Right under the name - Right click instruction
-    lore.add(Component.text("§7Right click your pickaxe to access enchants"));
-    lore.add(Component.text(""));
-    
-    // Statistics section
-    lore.add(Component.text("§a§lStatistics"));
-    
-    // Level with XP bar (smaller)
-    int level = getPickaxeLevel(player);
-    String levelLine = "§fLevel: §d" + level + " " + createCompactExpProgressBar(player);
-    lore.add(Component.text(levelLine));
-    
-    // Blocks mined (you'll need to add this tracking)
-    long blocksMined = getPlayerBlocksMined(player); // You'll need to implement this
-    lore.add(Component.text("§fBlocks: §d" + formatNumber(blocksMined)));
-    
-    lore.add(Component.text(""));
-    
-    // Enchants section
-    lore.add(Component.text("§c§lEnchants"));
-    
-    // Collect all enchants with their levels
-    java.util.List<EnchantDisplay> allEnchants = new java.util.ArrayList<>();
-    
-    // Add token enchants
-    Map<String, Integer> tokenEnchantLevels = getPlayerTokenEnchants(player);
-    for (Map.Entry<String, Integer> entry : tokenEnchantLevels.entrySet()) {
-        PickaxeEnchant enchant = tokenEnchants.get(entry.getKey());
-        if (enchant != null && entry.getValue() > 0) {
-            String enchantColor = getEnchantColor(enchant.getName());
-            allEnchants.add(new EnchantDisplay(enchant.getName(), entry.getValue(), 
-                enchant.getMaxLevel(), getEnchantUnlockLevel(entry.getKey(), true), enchantColor));
+        } catch (Exception e) {
+            System.err.println("[PickaxeManager] Error giving soulbound pickaxe to " + player.getUsername() + ": " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
-    // Add soul enchants
-    Map<String, Integer> soulEnchantLevels = getPlayerSoulEnchants(player);
-    for (Map.Entry<String, Integer> entry : soulEnchantLevels.entrySet()) {
-        PickaxeEnchant enchant = soulEnchants.get(entry.getKey());
-        if (enchant != null && entry.getValue() > 0) {
-            String enchantColor = getEnchantColor(enchant.getName());
-            allEnchants.add(new EnchantDisplay(enchant.getName(), entry.getValue(), 
-                enchant.getMaxLevel(), getEnchantUnlockLevel(entry.getKey(), false), enchantColor));
+    private java.util.List<Component> buildPickaxeLore(Player player) {
+        java.util.List<Component> lore = new java.util.ArrayList<>();
+
+        // Right under the name - Right click instruction
+        lore.add(Component.text("§7Right click your pickaxe to access enchants"));
+        lore.add(Component.text(""));
+
+        // Statistics section
+        lore.add(Component.text("§a§lStatistics"));
+
+        // Level with XP bar (smaller)
+        int level = getPickaxeLevel(player);
+        String levelLine = "§fLevel: §d" + level + " " + createCompactExpProgressBar(player);
+        lore.add(Component.text(levelLine));
+
+        // Blocks mined (you'll need to add this tracking)
+        long blocksMined = getPlayerBlocksMined(player); // You'll need to implement this
+        lore.add(Component.text("§fBlocks: §d" + formatNumber(blocksMined)));
+
+        lore.add(Component.text(""));
+
+        // Enchants section
+        lore.add(Component.text("§c§lEnchants"));
+
+        // Collect all enchants with their levels
+        java.util.List<EnchantDisplay> allEnchants = new java.util.ArrayList<>();
+
+        // Add token enchants
+        Map<String, Integer> tokenEnchantLevels = getPlayerTokenEnchants(player);
+        for (Map.Entry<String, Integer> entry : tokenEnchantLevels.entrySet()) {
+            PickaxeEnchant enchant = tokenEnchants.get(entry.getKey());
+            if (enchant != null && entry.getValue() > 0) {
+                String enchantColor = getEnchantColor(enchant.getName());
+                allEnchants.add(new EnchantDisplay(enchant.getName(), entry.getValue(),
+                        enchant.getMaxLevel(), getEnchantUnlockLevel(entry.getKey(), true), enchantColor));
+            }
         }
-    }
 
-    // Sort by unlock level (lowest to highest)
-    allEnchants.sort((a, b) -> Integer.compare(a.unlockLevel, b.unlockLevel));
-
-    // Add enchants to lore
-    if (!allEnchants.isEmpty()) {
-        for (EnchantDisplay enchant : allEnchants) {
-            String enchantLine = formatEnchantForLore(enchant);
-            lore.add(Component.text(enchantLine));
+        // Add soul enchants
+        Map<String, Integer> soulEnchantLevels = getPlayerSoulEnchants(player);
+        for (Map.Entry<String, Integer> entry : soulEnchantLevels.entrySet()) {
+            PickaxeEnchant enchant = soulEnchants.get(entry.getKey());
+            if (enchant != null && entry.getValue() > 0) {
+                String enchantColor = getEnchantColor(enchant.getName());
+                allEnchants.add(new EnchantDisplay(enchant.getName(), entry.getValue(),
+                        enchant.getMaxLevel(), getEnchantUnlockLevel(entry.getKey(), false), enchantColor));
+            }
         }
-    } else {
-        lore.add(Component.text("§7§oNo enchants applied"));
-    }
 
-    lore.add(Component.text(""));
-    lore.add(Component.text("§c§lSOULBOUND"));
+        // Sort by unlock level (lowest to highest)
+        allEnchants.sort((a, b) -> Integer.compare(a.unlockLevel, b.unlockLevel));
 
-    return lore;
-}
-
-// Add this method to PickaxeManager to get enchant colors
-private String getEnchantColor(String enchantName) {
-    String name = enchantName.toLowerCase();
-    
-    switch (name) {
-        // Token Enchants - Warm colors
-        case "efficiency":
-            return "§b"; // Aqua
-        case "fortune":
-            return "§a"; // Green
-        case "explosive":
-            return "§c"; // Red
-        case "speed":
-            return "§f"; // White
-        case "haste":
-            return "§9"; // Blue
-        case "magnet":
-            return "§e"; // Yellow
-        case "auto sell":
-        case "auto_sell":
-            return "§e"; // Yellow
-        
-        // Soul Enchants - Dark/mystical colors
-        case "super fortune":
-        case "super_fortune":
-            return "§a"; // Green
-        case "mega explosive":
-        case "mega_explosive":
-            return "§4"; // Dark Red
-        case "auto smelt":
-        case "auto_smelt":
-            return "§6"; // Gold
-        case "void walker":
-        case "void_walker":
-            return "§8"; // Dark Gray
-        case "time warp":
-        case "time_warp":
-            return "§5"; // Dark Purple
-        
-        default:
-            // Fallback to original logic based on enchant type
-            // Check if it's a token enchant by looking it up
-            return tokenEnchants.containsKey(name) ? "§6" : "§5";
-    }
-}
-
-// Add this new method for the compact XP bar
-private String createCompactExpProgressBar(Player player) {
-    long currentExp = getPickaxeExp(player);
-    long expRequired = getExpRequired(getPickaxeLevel(player));
-    
-    // Calculate progress (0.0 to 1.0)
-    double progress = Math.min(1.0, (double) currentExp / expRequired);
-    
-    int totalBars = 8; // Smaller bar for beside the level
-    int filledBars = (int) (progress * totalBars);
-    
-    StringBuilder bar = new StringBuilder("§7[");
-    for (int i = 0; i < totalBars; i++) {
-        if (i < filledBars) {
-            bar.append("§a█");
+        // Add enchants to lore
+        if (!allEnchants.isEmpty()) {
+            for (EnchantDisplay enchant : allEnchants) {
+                String enchantLine = formatEnchantForLore(enchant);
+                lore.add(Component.text(enchantLine));
+            }
         } else {
-            bar.append("§8█");
+            lore.add(Component.text("§7§oNo enchants applied"));
+        }
+
+        lore.add(Component.text(""));
+        lore.add(Component.text("§c§lSOULBOUND"));
+
+        return lore;
+    }
+
+    // Add this method to PickaxeManager to get enchant colors
+    private String getEnchantColor(String enchantName) {
+        String name = enchantName.toLowerCase();
+
+        switch (name) {
+            // Token Enchants - Warm colors
+            case "efficiency":
+                return "§b"; // Aqua
+            case "fortune":
+                return "§a"; // Green
+            case "explosive":
+                return "§c"; // Red
+            case "speed":
+                return "§f"; // White
+            case "haste":
+                return "§9"; // Blue
+            case "magnet":
+                return "§e"; // Yellow
+            case "auto sell":
+            case "auto_sell":
+                return "§e"; // Yellow
+
+            // Soul Enchants - Dark/mystical colors
+            case "super fortune":
+            case "super_fortune":
+                return "§a"; // Green
+            case "mega explosive":
+            case "mega_explosive":
+                return "§4"; // Dark Red
+            case "auto smelt":
+            case "auto_smelt":
+                return "§6"; // Gold
+            case "void walker":
+            case "void_walker":
+                return "§8"; // Dark Gray
+            case "time warp":
+            case "time_warp":
+                return "§5"; // Dark Purple
+
+            default:
+                // Fallback to original logic based on enchant type
+                // Check if it's a token enchant by looking it up
+                return tokenEnchants.containsKey(name) ? "§6" : "§5";
         }
     }
-    bar.append("§7]");
-    
-    return bar.toString();
-}
 
-// Add this method to track blocks mined (you'll need to implement the tracking)
-public long getPlayerBlocksMined(Player player) {
-    // You'll need to add a blocks mined counter to your player data
-    // For now, return 0 or a placeholder value
-    String playerUUID = player.getUuid().toString();
-    // Add this field to your class: private final Map<String, Long> playerBlocksMined = new ConcurrentHashMap<>();
-    // Then uncomment the line below:
-    return playerBlocksMined.getOrDefault(playerUUID, 0L);
-    //return 0L; // Placeholder - replace with actual implementation
-}
+    // Add this new method for the compact XP bar
+    private String createCompactExpProgressBar(Player player) {
+        long currentExp = getPickaxeExp(player);
+        long expRequired = getExpRequired(getPickaxeLevel(player));
 
-// Add this method to format large numbers
-private String formatNumber(long number) {
-    if (number >= 1_000_000_000) {
-        return String.format("%.1fB", number / 1_000_000_000.0);
-    } else if (number >= 1_000_000) {
-        return String.format("%.1fM", number / 1_000_000.0);
-    } else if (number >= 1_000) {
-        return String.format("%.1fK", number / 1_000.0);
-    } else {
-        return String.valueOf(number);
+        // Calculate progress (0.0 to 1.0)
+        double progress = Math.min(1.0, (double) currentExp / expRequired);
+
+        int totalBars = 8; // Smaller bar for beside the level
+        int filledBars = (int) (progress * totalBars);
+
+        StringBuilder bar = new StringBuilder("§7[");
+        for (int i = 0; i < totalBars; i++) {
+            if (i < filledBars) {
+                bar.append("§a█");
+            } else {
+                bar.append("§8█");
+            }
+        }
+        bar.append("§7]");
+
+        return bar.toString();
     }
-}
+
+    // Add this method to track blocks mined (you'll need to implement the tracking)
+    public long getPlayerBlocksMined(Player player) {
+        // You'll need to add a blocks mined counter to your player data
+        // For now, return 0 or a placeholder value
+        String playerUUID = player.getUuid().toString();
+        // Add this field to your class: private final Map<String, Long> playerBlocksMined = new ConcurrentHashMap<>();
+        // Then uncomment the line below:
+        return playerBlocksMined.getOrDefault(playerUUID, 0L);
+        //return 0L; // Placeholder - replace with actual implementation
+    }
+
+    // Add this method to format large numbers
+    private String formatNumber(long number) {
+        if (number >= 1_000_000_000) {
+            return String.format("%.1fB", number / 1_000_000_000.0);
+        } else if (number >= 1_000_000) {
+            return String.format("%.1fM", number / 1_000_000.0);
+        } else if (number >= 1_000) {
+            return String.format("%.1fK", number / 1_000.0);
+        } else {
+            return String.valueOf(number);
+        }
+    }
 
     private String createExpProgressBar(Player player) {
         long currentExp = getPickaxeExp(player);
         long expRequired = getExpRequired(getPickaxeLevel(player));
-        
+
         // Calculate progress (0.0 to 1.0)
         double progress = Math.min(1.0, (double) currentExp / expRequired);
-        
+
         int totalBars = 15; // Slightly shorter for pickaxe lore
         int filledBars = (int) (progress * totalBars);
-        
+
         StringBuilder bar = new StringBuilder("§f§lEXP: §7[");
         for (int i = 0; i < totalBars; i++) {
             if (i < filledBars) {
@@ -321,23 +324,23 @@ private String formatNumber(long number) {
             }
         }
         bar.append("§7] §b").append(String.format("%.1f", progress * 100)).append("%");
-        
+
         return bar.toString();
     }
 
     private String formatEnchantForLore(EnchantDisplay enchant) {
         StringBuilder formatted = new StringBuilder();
-        
+
         // Add enchant name with color
         formatted.append(enchant.color).append("§l").append(enchant.name);
-        
+
         // Add level or MAX
         if (enchant.currentLevel >= enchant.maxLevel) {
             formatted.append(" §6§lMAX");
         } else {
             formatted.append(" §f").append(enchant.currentLevel);
         }
-        
+
         return formatted.toString();
     }
 
@@ -347,23 +350,37 @@ private String formatNumber(long number) {
         // You can customize these values based on your game balance
         if (isTokenEnchant) {
             switch (enchantKey.toLowerCase()) {
-                case "efficiency": return 1;
-                case "fortune": return 5;
-                case "speed": return 10;
-                case "haste": return 15;
-                case "explosive": return 20;
-                case "magnet": return 25;
-                case "auto_sell": return 30;
-                default: return 1;
+                case "efficiency":
+                    return 1;
+                case "fortune":
+                    return 5;
+                case "speed":
+                    return 10;
+                case "haste":
+                    return 15;
+                case "explosive":
+                    return 20;
+                case "magnet":
+                    return 25;
+                case "auto_sell":
+                    return 30;
+                default:
+                    return 1;
             }
         } else {
             switch (enchantKey.toLowerCase()) {
-                case "super_fortune": return 35;
-                case "auto_smelt": return 40;
-                case "mega_explosive": return 45;
-                case "void_walker": return 50;
-                case "time_warp": return 55;
-                default: return 35;
+                case "super_fortune":
+                    return 35;
+                case "auto_smelt":
+                    return 40;
+                case "mega_explosive":
+                    return 45;
+                case "void_walker":
+                    return 50;
+                case "time_warp":
+                    return 55;
+                default:
+                    return 35;
             }
         }
     }
@@ -375,7 +392,7 @@ private String formatNumber(long number) {
         final int maxLevel;
         final int unlockLevel;
         final String color;
-        
+
         EnchantDisplay(String name, int currentLevel, int maxLevel, int unlockLevel, String color) {
             this.name = name;
             this.currentLevel = currentLevel;
@@ -402,14 +419,14 @@ private String formatNumber(long number) {
                 formatted.append("§8☆"); // Empty star for remaining levels
             }
         }
-        
+
         formatted.append("§7]");
-        
+
         // Add max level indicator if maxed
         if (currentLevel >= maxLevel) {
             formatted.append(" §6§lMAX");
         }
-        
+
         return formatted.toString();
     }
 
@@ -430,10 +447,10 @@ private String formatNumber(long number) {
     }
 
     public boolean preventPickaxeMovement(InventoryPreClickEvent event) {
-    // This method is now simplified since we handle it directly in MythicPrison
-    // Keep it for backwards compatibility but it won't be used
-    return false;
-}
+        // This method is now simplified since we handle it directly in MythicPrison
+        // Keep it for backwards compatibility but it won't be used
+        return false;
+    }
 
     // Replace the existing updatePickaxe method with this simpler version
     public void updatePickaxe(Player player) {
@@ -508,13 +525,13 @@ private String formatNumber(long number) {
     // Generic method that works for both token and soul enchants
     public int getEnchantLevel(Player player, String enchantName) {
         String lowercaseName = enchantName.toLowerCase();
-        
+
         // Check token enchants first
         int tokenLevel = getTokenEnchantLevel(player, lowercaseName);
         if (tokenLevel > 0) {
             return tokenLevel;
         }
-        
+
         // Check soul enchants
         int soulLevel = getSoulEnchantLevel(player, lowercaseName);
         return soulLevel;
@@ -524,13 +541,13 @@ private String formatNumber(long number) {
         if (isTokenEnchant) {
             PickaxeEnchant enchant = tokenEnchants.get(enchantName.toLowerCase());
             if (enchant == null) return false;
-            
+
             int currentLevel = getTokenEnchantLevel(player, enchantName);
             return currentLevel < enchant.getMaxLevel();
         } else {
             PickaxeEnchant enchant = soulEnchants.get(enchantName.toLowerCase());
             if (enchant == null) return false;
-            
+
             int currentLevel = getSoulEnchantLevel(player, enchantName);
             return currentLevel < enchant.getMaxLevel();
         }
@@ -660,55 +677,127 @@ private String formatNumber(long number) {
     }
 
     public void addBlocksMined(Player player, long blocks) {
-    String playerUUID = player.getUuid().toString();
-    long currentBlocks = playerBlocksMined.getOrDefault(playerUUID, 0L);
-    playerBlocksMined.put(playerUUID, currentBlocks + blocks);
-    
-    // Update the pickaxe to reflect new stats
-    updatePickaxe(player);
-}
+        String playerUUID = player.getUuid().toString();
+        long currentBlocks = playerBlocksMined.getOrDefault(playerUUID, 0L);
+        playerBlocksMined.put(playerUUID, currentBlocks + blocks);
 
-public boolean preventItemSwap(PlayerSwapItemEvent event) {
-    Player player = event.getPlayer();
-    ItemStack mainHandItem = event.getMainHandItem();
-    ItemStack offHandItem = event.getOffHandItem();
-    
-    // Only prevent swapping TO the offhand if it's a soulbound pickaxe
-    // This allows normal hotbar scrolling but prevents moving pickaxe to offhand
-    if (isSoulboundPickaxe(mainHandItem)) {
-        player.sendMessage("§cYou cannot move your soulbound pickaxe to your offhand!");
-        return true; // Cancel the swap
+        // Update the pickaxe to reflect new stats
+        updatePickaxe(player);
     }
-    
-    return false;
-}
 
-// Add this method to check and restore pickaxe if missing
-public void validatePlayerPickaxe(Player player) {
-    try {
-        ItemStack slot0Item = player.getInventory().getItemStack(0);
-        
-        // If slot 0 is empty or doesn't contain the soulbound pickaxe, restore it
-        if (!isSoulboundPickaxe(slot0Item)) {
-            System.out.println("[PickaxeManager] Restoring missing pickaxe for: " + player.getUsername());
-            giveSoulboundPickaxe(player);
+    public boolean preventItemSwap(PlayerSwapItemEvent event) {
+        Player player = event.getPlayer();
+        ItemStack mainHandItem = event.getMainHandItem();
+        ItemStack offHandItem = event.getOffHandItem();
+
+        // Only prevent swapping TO the offhand if it's a soulbound pickaxe
+        // This allows normal hotbar scrolling but prevents moving pickaxe to offhand
+        if (isSoulboundPickaxe(mainHandItem)) {
+            player.sendMessage("§cYou cannot move your soulbound pickaxe to your offhand!");
+            return true; // Cancel the swap
         }
-    } catch (Exception e) {
-        System.err.println("[PickaxeManager] Error validating pickaxe for " + player.getUsername() + ": " + e.getMessage());
-        e.printStackTrace();
+
+        return false;
     }
-}
 
-// Force give pickaxe immediately on join
-public void forceGivePickaxe(Player player) {
-    try {
-        giveSoulboundPickaxe(player);
-        System.out.println("[PickaxeManager] Force gave pickaxe to: " + player.getUsername());
-    } catch (Exception e) {
-        System.err.println("[PickaxeManager] Error force giving pickaxe: " + e.getMessage());
-        e.printStackTrace();
+    // Add this method to check and restore pickaxe if missing
+    public void validatePlayerPickaxe(Player player) {
+        try {
+            ItemStack slot0Item = player.getInventory().getItemStack(0);
+
+            // If slot 0 is empty or doesn't contain the soulbound pickaxe, restore it
+            if (!isSoulboundPickaxe(slot0Item)) {
+                System.out.println("[PickaxeManager] Restoring missing pickaxe for: " + player.getUsername());
+                giveSoulboundPickaxe(player);
+            }
+        } catch (Exception e) {
+            System.err.println("[PickaxeManager] Error validating pickaxe for " + player.getUsername() + ": " + e.getMessage());
+            e.printStackTrace();
+        }
     }
-}
 
+    // Force give pickaxe immediately on join
+    public void forceGivePickaxe(Player player) {
+        try {
+            giveSoulboundPickaxe(player);
+            System.out.println("[PickaxeManager] Force gave pickaxe to: " + player.getUsername());
+        } catch (Exception e) {
+            System.err.println("[PickaxeManager] Error force giving pickaxe: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 
+    // Add methods to sync pickaxe data with profile
+    public void savePickaxeToProfile(Player player) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                Profile profile = Profile.loadAsync(player.getUuid().toString()).join();
+                if (profile != null) {
+                    // Save current pickaxe data to profile
+                    // You'll need to implement getPlayerPickaxeExp() and getPlayerEnchants() methods
+                    profile.setPickaxeExp(getPickaxeExp(player));
+                    profile.setPickaxeLevel(getPickaxeLevel(player));
+                    Map<String, Integer> allEnchants = new HashMap<>();
+                    allEnchants.putAll(getPlayerTokenEnchants(player));
+                    allEnchants.putAll(getPlayerSoulEnchants(player));
+                    profile.setPickaxeEnchants(allEnchants);
+                    profile.saveAsync().join();
+                }
+            } catch (Exception e) {
+                System.err.println("Error saving pickaxe to profile: " + e.getMessage());
+            }
+        });
+    }
+
+    public void loadPickaxeFromProfile(Player player) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                Profile profile = Profile.loadAsync(player.getUuid().toString()).join();
+                if (profile != null) {
+                    // Load pickaxe data from profile
+                    setPickaxeExp(player, profile.getPickaxeExp());
+                    setPlayerPickaxeLevel(player, profile.getPickaxeLevel());
+                    setPlayerEnchants(player, profile.getPickaxeEnchants());
+                }
+            } catch (Exception e) {
+                System.err.println("Error loading pickaxe from profile: " + e.getMessage());
+            }
+        });
+    }
+
+    public void setPlayerEnchants(Player player, Map<String, Integer> enchants) {
+        String playerUUID = player.getUuid().toString();
+        Map<String, Integer> tokenEnchantsMap = new HashMap<>();
+        Map<String, Integer> soulEnchantsMap = new HashMap<>();
+
+        // Separate token and soul enchants based on the enchant's definition
+        for (Map.Entry<String, Integer> entry : enchants.entrySet()) {
+            String enchantName = entry.getKey().toLowerCase();
+            if (tokenEnchants.containsKey(enchantName)) {
+                tokenEnchantsMap.put(enchantName, entry.getValue());
+            } else if (soulEnchants.containsKey(enchantName)) {
+                soulEnchantsMap.put(enchantName, entry.getValue());
+            }
+        }
+
+        // Update the maps with the split enchants
+        playerTokenEnchants.put(playerUUID, tokenEnchantsMap);
+        playerSoulEnchants.put(playerUUID, soulEnchantsMap);
+
+        // Update the pickaxe item to reflect the loaded enchants
+        updatePickaxe(player);
+    }
+
+    public void setPlayerPickaxeLevel(Player player, int level) {
+        String playerUUID = player.getUuid().toString();
+        playerPickaxeLevels.put(playerUUID, level);
+
+        // Update the pickaxe item to reflect the loaded level
+        updatePickaxe(player);
+    }
+    public void setPickaxeExp(Player player, long exp) {
+        String playerUUID = player.getUuid().toString();
+        playerPickaxeExp.put(playerUUID, exp);
+        updatePlayerExpBar(player);
+    }
 }

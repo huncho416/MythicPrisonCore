@@ -4,7 +4,6 @@ import mythic.prison.MythicPrison;
 import mythic.prison.data.enchants.PickaxeEnchant;
 import mythic.prison.managers.CurrencyManager;
 import mythic.prison.managers.PickaxeManager;
-import mythic.prison.utils.ChatUtil;
 import net.minestom.server.entity.Player;
 import net.minestom.server.inventory.InventoryType;
 import net.minestom.server.inventory.click.Click;
@@ -150,22 +149,31 @@ public class PickaxeBulkUpgradeGUI extends BaseGUI {
         lore.add("");
 
         if (maxAffordable > 0) {
-            lore.add("§a§lClick to upgrade!");
-            return createItem(Material.HOPPER, "§b§lMAX", lore);
+            return createItem(Material.NETHER_STAR, "§d§lMAX UPGRADE", lore.toArray(new String[0]));
         } else {
             lore.add("§c§lCannot afford any upgrades!");
-            return createItem(Material.HOPPER, "§c§lMAX", lore);
+            return createItem(Material.BARRIER, "§c§lMAX UPGRADE", lore);
         }
     }
 
     private ItemStack createBackButton() {
-        return createItem(Material.ARROW, "§e§lBack", "§7Return to enchant menu");
+        return createItem(Material.ARROW, "§c« Back", "§7Return to enchant menu");
     }
 
     @Override
     protected void handleClick(int slot, Click click) {
         if (slot == 49) {
+            // Back button
             parentGUI.open();
+            return;
+        }
+
+        int currentLevel = isTokenEnchant ?
+                pickaxeManager.getTokenEnchantLevel(player, enchantKey) :
+                pickaxeManager.getSoulEnchantLevel(player, enchantKey);
+
+        if (currentLevel >= enchant.getMaxLevel()) {
+            player.sendMessage("§c§lThis enchant is already at maximum level!");
             return;
         }
 
@@ -173,36 +181,30 @@ public class PickaxeBulkUpgradeGUI extends BaseGUI {
         int[] slots = {19, 20, 21, 22, 23, 24, 25, 28, 29};
         for (int i = 0; i < slots.length && i < quantities.length; i++) {
             if (slot == slots[i]) {
-                handleQuantityUpgrade(quantities[i]);
+                handleUpgrade(quantities[i], currentLevel);
                 return;
             }
         }
 
         // Handle max button
         if (slot == 31) {
-            handleMaxUpgrade();
+            handleMaxUpgrade(currentLevel);
         }
     }
 
-    private void handleQuantityUpgrade(int requestedQuantity) {
-        int currentLevel = isTokenEnchant ?
-                pickaxeManager.getTokenEnchantLevel(player, enchantKey) :
-                pickaxeManager.getSoulEnchantLevel(player, enchantKey);
-
-        if (currentLevel >= enchant.getMaxLevel()) {
-            ChatUtil.sendError(player, "This enchant is already at maximum level!");
+    private void handleUpgrade(int quantity, int currentLevel) {
+        int maxPossible = Math.min(quantity, enchant.getMaxLevel() - currentLevel);
+        if (maxPossible <= 0) {
+            player.sendMessage("§c§lCannot upgrade this enchant further!");
             return;
         }
 
-        int actualQuantity = Math.min(requestedQuantity, enchant.getMaxLevel() - currentLevel);
-        double totalCost = calculateTotalCost(currentLevel, actualQuantity);
+        double totalCost = calculateTotalCost(currentLevel, maxPossible);
         String currency = isTokenEnchant ? "tokens" : "souls";
-
         double balance = currencyManager.getBalance(player, currency);
 
         if (balance < totalCost) {
-            ChatUtil.sendError(player, "Insufficient " + currency + "! You need " +
-                    formatCost(totalCost) + " " + currency + ".");
+            player.sendMessage("§c§lInsufficient " + currency + "! You need " + formatCost(totalCost) + " " + currency + ".");
             return;
         }
 
@@ -211,82 +213,64 @@ public class PickaxeBulkUpgradeGUI extends BaseGUI {
 
         // Add enchant levels
         boolean success = isTokenEnchant ?
-                pickaxeManager.addTokenEnchant(player, enchantKey, actualQuantity) :
-                pickaxeManager.addSoulEnchant(player, enchantKey, actualQuantity);
+                pickaxeManager.addTokenEnchant(player, enchantKey, maxPossible) :
+                pickaxeManager.addSoulEnchant(player, enchantKey, maxPossible);
 
         if (success) {
-            int newLevel = currentLevel + actualQuantity;
-            ChatUtil.sendMessage(player, "§a§l✦ ENCHANT UPGRADED!");
-            ChatUtil.sendMessage(player, "§e" + enchant.getName() + " §7upgraded by §a" + actualQuantity + " §7levels!");
-            ChatUtil.sendMessage(player, "§7New level: §a" + newLevel + "§7/§a" + enchant.getMaxLevel());
+            player.sendMessage("§a§l✦ ENCHANT UPGRADED!");
+            player.sendMessage("§e" + enchant.getName() + " §7upgraded by §a" + maxPossible + " §7levels!");
 
             // Check if maxed
+            int newLevel = currentLevel + maxPossible;
             if (newLevel >= enchant.getMaxLevel()) {
                 player.sendMessage("§6✦ " + enchant.getName() + " is now MAX LEVEL! ✦");
-                
-                // Immediate return to parent GUI without any delay
-                parentGUI.open();
-                return;
             }
 
             // Refresh GUI
             populateItems();
         } else {
-            ChatUtil.sendError(player, "Failed to upgrade enchant!");
+            // Refund on failure
             currencyManager.addBalance(player, currency, totalCost);
+            player.sendMessage("§c§lFailed to upgrade enchant!");
         }
     }
 
-    private void handleMaxUpgrade() {
-        int currentLevel = isTokenEnchant ?
-                pickaxeManager.getTokenEnchantLevel(player, enchantKey) :
-                pickaxeManager.getSoulEnchantLevel(player, enchantKey);
-
+    private void handleMaxUpgrade(int currentLevel) {
         String currency = isTokenEnchant ? "tokens" : "souls";
         double balance = currencyManager.getBalance(player, currency);
 
         int maxAffordable = calculateMaxAffordable(currentLevel, balance);
-
         if (maxAffordable <= 0) {
-            ChatUtil.sendError(player, "You cannot afford any upgrades!");
+            player.sendMessage("§c§lYou cannot afford any upgrades!");
             return;
         }
 
-        handleQuantityUpgrade(maxAffordable);
+        handleUpgrade(maxAffordable, currentLevel);
     }
 
-    private double calculateTotalCost(int startLevel, int quantity) {
+    private double calculateTotalCost(int fromLevel, int levels) {
         double total = 0;
-        for (int i = 0; i < quantity; i++) {
-            total += enchant.getCostForLevel(startLevel + i + 1);
+        for (int i = 0; i < levels; i++) {
+            total += enchant.getCostForLevel(fromLevel + i + 1);
         }
         return total;
     }
 
     private int calculateMaxAffordable(int currentLevel, double balance) {
-        int maxPossible = enchant.getMaxLevel() - currentLevel;
-        double totalCost = 0;
+        int affordable = 0;
+        double runningCost = 0;
 
-        for (int i = 1; i <= maxPossible; i++) {
-            totalCost += enchant.getCostForLevel(currentLevel + i);
-            if (totalCost > balance) {
-                return i - 1;
+        for (int level = currentLevel + 1; level <= enchant.getMaxLevel(); level++) {
+            double levelCost = enchant.getCostForLevel(level);
+            if (runningCost + levelCost <= balance) {
+                runningCost += levelCost;
+                affordable++;
+            } else {
+                break;
             }
         }
 
-        return maxPossible;
-    }
-
-    private String formatCost(double cost) {
-        if (cost >= 1_000_000_000) {
-            return String.format("%.1fB", cost / 1_000_000_000);
-        } else if (cost >= 1_000_000) {
-            return String.format("%.1fM", cost / 1_000_000);
-        } else if (cost >= 1_000) {
-            return String.format("%.1fK", cost / 1_000);
-        } else {
-            return String.format("%.0f", cost);
-        }
+        return affordable;
     }
 
     // Add this method to get the enchant material
@@ -331,6 +315,18 @@ public class PickaxeBulkUpgradeGUI extends BaseGUI {
             default:
                 // Fallback based on enchant type
                 return isTokenEnchant ? Material.GOLD_INGOT : Material.SOUL_SAND;
+        }
+    }
+
+    private String formatCost(double cost) {
+        if (cost >= 1_000_000_000) {
+            return String.format("%.1fB", cost / 1_000_000_000);
+        } else if (cost >= 1_000_000) {
+            return String.format("%.1fM", cost / 1_000_000);
+        } else if (cost >= 1_000) {
+            return String.format("%.1fK", cost / 1_000);
+        } else {
+            return String.format("%.0f", cost);
         }
     }
 }

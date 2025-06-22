@@ -43,6 +43,15 @@ public class CurrencyManager {
         if ("money".equals(currency) && amount > profile.getBalance(currency)) {
             profile.addMoneyEarned(amount - profile.getBalance(currency));
         }
+        
+        // ADD THIS: Save the profile after updating
+        MythicPrison.getInstance().getProfileManager().saveProfile(profile);
+        
+        // ADD THIS: Update scoreboard after currency change
+        var scoreboardManager = MythicPrison.getInstance().getScoreboardManager();
+        if (scoreboardManager != null) {
+            scoreboardManager.updatePlayerScoreboard(player);
+        }
     }
 
     public boolean addBalance(Player player, String currency, double amount) {
@@ -51,9 +60,17 @@ public class CurrencyManager {
         
         boolean success = profile.addBalance(currency, amount);
         
-        // Track money earned for stats
         if (success && "money".equals(currency)) {
             profile.addMoneyEarned(amount);
+        }
+        
+        // ADD THIS: Save the profile after updating
+        MythicPrison.getInstance().getProfileManager().saveProfile(profile);
+        
+        // ADD THIS: Update scoreboard after currency change
+        var scoreboardManager = MythicPrison.getInstance().getScoreboardManager();
+        if (scoreboardManager != null) {
+            scoreboardManager.updatePlayerScoreboard(player);
         }
         
         return success;
@@ -63,7 +80,20 @@ public class CurrencyManager {
         PlayerProfile profile = MythicPrison.getInstance().getProfileManager().getProfile(player);
         if (profile == null) return false;
         
-        return profile.removeBalance(currency, amount);
+        boolean success = profile.removeBalance(currency, amount);
+        
+        if (success) {
+            // ADD THIS: Save the profile after updating
+            MythicPrison.getInstance().getProfileManager().saveProfile(profile);
+            
+            // ADD THIS: Update scoreboard after currency change
+            var scoreboardManager = MythicPrison.getInstance().getScoreboardManager();
+            if (scoreboardManager != null) {
+                scoreboardManager.updatePlayerScoreboard(player);
+            }
+        }
+        
+        return success;
     }
 
     public boolean hasBalance(Player player, String currency, double amount) {

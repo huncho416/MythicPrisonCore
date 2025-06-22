@@ -13,7 +13,7 @@ public class FriendsCommand extends Command {
 
     public FriendsCommand() {
         super("friend", "friends", "f");
-        this.friendsManager = MythicPrison.getInstance().getFriendsManager();
+        this.friendsManager = new FriendsManager();
 
         ArgumentWord actionArg = ArgumentType.Word("action")
                 .from("add", "remove", "accept", "deny", "list", "requests", "help");

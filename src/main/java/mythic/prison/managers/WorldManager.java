@@ -11,18 +11,145 @@ import net.minestom.server.world.DimensionType;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.FileReader;
+import java.io.IOException;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 
 public class WorldManager {
 
     private final Map<String, InstanceContainer> worlds = new HashMap<>();
     private final InstanceManager instanceManager;
+    private final Gson gson = new Gson();
+    private final File spawnConfigFile;
 
-    // World spawn positions
-    private final Pos spawnWorldSpawn = new Pos(0, 100, 0); // Adjust coordinates as needed
-    private final Pos mineWorldSpawn = new Pos(0, 64, 0);   // Adjust coordinates as needed
+    // World spawn positions - these will be loaded from config or defaults
+    private Pos spawnWorldSpawn = new Pos(0, 64, 0); // Default spawn position
+    private Pos mineWorldSpawn = new Pos(0, 64, 0);   // Default mine position
 
     public WorldManager() {
         this.instanceManager = MinecraftServer.getInstanceManager();
+        this.spawnConfigFile = new File("spawn-config.json");
+        loadSpawnConfig();
+    }
+
+    /**
+     * Load spawn positions from config file
+     */
+    private void loadSpawnConfig() {
+        try {
+            if (spawnConfigFile.exists()) {
+                JsonObject config = gson.fromJson(new FileReader(spawnConfigFile), JsonObject.class);
+                
+                if (config.has("spawn")) {
+                    JsonObject spawnData = config.getAsJsonObject("spawn");
+                    spawnWorldSpawn = new Pos(
+                        spawnData.get("x").getAsDouble(),
+                        spawnData.get("y").getAsDouble(),
+                        spawnData.get("z").getAsDouble(),
+                        spawnData.has("yaw") ? spawnData.get("yaw").getAsFloat() : 0f,
+                        spawnData.has("pitch") ? spawnData.get("pitch").getAsFloat() : 0f
+                    );
+                }
+                
+                if (config.has("mine")) {
+                    JsonObject mineData = config.getAsJsonObject("mine");
+                    mineWorldSpawn = new Pos(
+                        mineData.get("x").getAsDouble(),
+                        mineData.get("y").getAsDouble(),
+                        mineData.get("z").getAsDouble(),
+                        mineData.has("yaw") ? mineData.get("yaw").getAsFloat() : 0f,
+                        mineData.has("pitch") ? mineData.get("pitch").getAsFloat() : 0f
+                    );
+                }
+                
+                System.out.println("[WorldManager] Loaded spawn positions from config");
+            } else {
+                // Create default config file
+                saveSpawnConfig();
+                System.out.println("[WorldManager] Created default spawn config");
+            }
+        } catch (Exception e) {
+            System.err.println("[WorldManager] Error loading spawn config: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Save spawn positions to config file
+     */
+    private void saveSpawnConfig() {
+        try {
+            JsonObject config = new JsonObject();
+            
+            // Save spawn world position
+            JsonObject spawnData = new JsonObject();
+            spawnData.addProperty("x", spawnWorldSpawn.x());
+            spawnData.addProperty("y", spawnWorldSpawn.y());
+            spawnData.addProperty("z", spawnWorldSpawn.z());
+            spawnData.addProperty("yaw", spawnWorldSpawn.yaw());
+            spawnData.addProperty("pitch", spawnWorldSpawn.pitch());
+            config.add("spawn", spawnData);
+            
+            // Save mine world position
+            JsonObject mineData = new JsonObject();
+            mineData.addProperty("x", mineWorldSpawn.x());
+            mineData.addProperty("y", mineWorldSpawn.y());
+            mineData.addProperty("z", mineWorldSpawn.z());
+            mineData.addProperty("yaw", mineWorldSpawn.yaw());
+            mineData.addProperty("pitch", mineWorldSpawn.pitch());
+            config.add("mine", mineData);
+            
+            try (FileWriter writer = new FileWriter(spawnConfigFile)) {
+                gson.toJson(config, writer);
+            }
+            
+        } catch (IOException e) {
+            System.err.println("[WorldManager] Error saving spawn config: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Set the spawn position for a specific world
+     * @param worldName The world name ("spawn" or "mine")
+     * @param position The new spawn position
+     * @return true if successful, false otherwise
+     */
+    public boolean setSpawnPosition(String worldName, Pos position) {
+        worldName = worldName.toLowerCase();
+        
+        switch (worldName) {
+            case "spawn":
+                spawnWorldSpawn = position;
+                break;
+            case "mine":
+                mineWorldSpawn = position;
+                break;
+            default:
+                return false;
+        }
+        
+        // Save to config file
+        saveSpawnConfig();
+        System.out.println("[WorldManager] Updated " + worldName + " spawn to: " + position);
+        return true;
+    }
+
+    /**
+     * Get the spawn position for a specific world
+     * @param worldName The world name
+     * @return The spawn position or null if world not found
+     */
+    public Pos getSpawnPosition(String worldName) {
+        switch (worldName.toLowerCase()) {
+            case "spawn":
+                return spawnWorldSpawn;
+            case "mine":
+                return mineWorldSpawn;
+            default:
+                return null;
+        }
     }
 
     public void loadWorlds() {

@@ -11,6 +11,7 @@ import net.minestom.server.command.builder.arguments.ArgumentString;
 import net.minestom.server.entity.Player;
 import net.minestom.server.MinecraftServer;
 import mythic.prison.managers.SchematicWorldManager;
+import net.minestom.server.coordinate.Pos;
 
 public class MineCommand extends Command {
     
@@ -107,71 +108,72 @@ public class MineCommand extends Command {
         ChatUtil.sendMessage(player, "§7§oNote: Use §d/mine go §7§oto teleport to your mine!");
         ChatUtil.sendMessage(player, "§f§l§m                                                    ");
     }
-    
-    private void executeGo(Player player) {
+
+private void executeGo(Player player) {
+    try {
         MineManager mineManager = MythicPrison.getInstance().getMineManager();
-        SchematicWorldManager schematicManager = MythicPrison.getInstance().getSchematicWorldManager();
-        
-        // Auto-teleport to player's mine (create if doesn't exist)
-        if (!mineManager.hasPlayerMine(player)) {
-            mineManager.createPrivateMine(player);
-            ChatUtil.sendSuccess(player, "Created your personal mine!");
-            
-            // Add a longer delay to ensure mine is fully created before teleporting
-            MythicPrison.getInstance().getScheduler().schedule(() -> {
-                // Get the mine after creation
-                PrivateMine mine = mineManager.getPlayerMine(player);
-                if (mine != null && schematicManager != null) {
-                    String mineWorldName = "mine_" + player.getUsername().toLowerCase();
-                    
-                    // Track player in world BEFORE teleporting
-                    schematicManager.trackPlayerInWorld(player, mineWorldName);
-
-                    
-                    // Now teleport
-                    mineManager.teleportToMine(player);
-                    
-                    // Add another small delay to ensure teleportation completed, then track again
-                    MythicPrison.getInstance().getScheduler().schedule(() -> {
-                        schematicManager.trackPlayerInWorld(player, mineWorldName);
-
-                        
-                        // Force update the world tracking
-                        String currentWorld = schematicManager.getPlayerWorld(player);
-
-                    }, 50, java.util.concurrent.TimeUnit.MILLISECONDS);
-                }
-            }, 200, java.util.concurrent.TimeUnit.MILLISECONDS); // Increased delay
+        if (mineManager != null) {
+            mineManager.teleportToMine(player);
         } else {
-            // Get the mine first
-            PrivateMine mine = mineManager.getPlayerMine(player);
-            if (mine != null && schematicManager != null) {
-                String mineWorldName = "mine_" + player.getUsername().toLowerCase();
-                
-                // Track player in world BEFORE teleporting
-                schematicManager.trackPlayerInWorld(player, mineWorldName);
-
-                
-                // Now teleport
-                mineManager.teleportToMine(player);
-                
-                // Add a small delay to ensure teleportation completed, then track again
-                MythicPrison.getInstance().getScheduler().schedule(() -> {
-                    schematicManager.trackPlayerInWorld(player, mineWorldName);
-
-                    
-                    // Force update the world tracking
-                    String currentWorld = schematicManager.getPlayerWorld(player);
-
-                }, 50, java.util.concurrent.TimeUnit.MILLISECONDS);
-            } else {
-                // Fallback - just teleport
-                mineManager.teleportToMine(player);
-            }
-            
-            ChatUtil.sendSuccess(player, "Teleported to your mine!");
+            player.sendMessage("§cMine system not available! Please contact an administrator.");
         }
+    } catch (Exception e) {
+        System.err.println("[MineCommand] Error in executeGo: " + e.getMessage());
+        e.printStackTrace();
+        player.sendMessage("§cError teleporting to mine: " + e.getMessage());
     }
+}
+
+private void teleportToMineWorld(Player player, String mineWorldName, SchematicWorldManager schematicManager) {
+    System.out.println("[MineCommand] teleportToMineWorld called for: " + mineWorldName);
+    
+    var world = schematicManager.getWorld(mineWorldName);
+    if (world == null) {
+        System.out.println("[MineCommand] World not found, creating it...");
+        schematicManager.createSchematicWorld(mineWorldName, "mine").thenAccept(instance -> {
+            if (instance != null) {
+                System.out.println("[MineCommand] World created, teleporting...");
+                performActualTeleport(player, mineWorldName, schematicManager);
+            } else {
+                System.err.println("[MineCommand] Failed to create world");
+                player.sendMessage("§cFailed to load your mine! Please try again.");
+            }
+        });
+    } else {
+        System.out.println("[MineCommand] World found, teleporting directly...");
+        performActualTeleport(player, mineWorldName, schematicManager);
+    }
+}
+
+private void performActualTeleport(Player player, String mineWorldName, SchematicWorldManager schematicManager) {
+    try {
+        var world = schematicManager.getWorld(mineWorldName);
+        if (world == null || world.getInstance() == null) {
+            System.err.println("[MineCommand] World or instance is null after creation");
+            player.sendMessage("§cMine world not available!");
+            return;
+        }
+
+        // Use mine-specific coordinates instead of spawn coordinates
+        Pos mineSpawnPoint = new Pos(0, 65, 0); // Mine coordinates, not spawn
+        
+        System.out.println("[MineCommand] Teleporting to instance: " + world.getInstance().getClass().getSimpleName());
+        System.out.println("[MineCommand] Teleporting to position: " + mineSpawnPoint);
+        
+        // Track the player first
+        schematicManager.trackPlayerInWorld(player, mineWorldName);
+        
+        // Force teleport to the mine instance with mine coordinates
+        player.setInstance(world.getInstance(), mineSpawnPoint);
+        
+        System.out.println("[MineCommand] Teleportation completed");
+        
+    } catch (Exception e) {
+        System.err.println("[MineCommand] Error during teleportation: " + e.getMessage());
+        e.printStackTrace();
+        player.sendMessage("§cError teleporting to mine!");
+    }
+}
     
     private void showMineInfo(Player player) {
         MineManager mineManager = MythicPrison.getInstance().getMineManager();

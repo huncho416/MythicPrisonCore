@@ -7,6 +7,8 @@ import net.minestom.server.entity.Player;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
+import mythic.prison.player.Profile;
 
 public class MultiplierManager {
     
@@ -54,27 +56,28 @@ public class MultiplierManager {
         return 1.0;
     }
 
-    public void setMultiplier(Player player, String type, double multiplier, long durationMs) {
-        String uuid = player.getUuid().toString();
+    public void setMultiplier(Player player, String type, double amount, long durationMs) {
+        try {
+            // Update in-memory storage
+            String playerUUID = player.getUuid().toString();
+            playerMultipliers.computeIfAbsent(playerUUID, k -> new HashMap<>()).put(type, amount);
         
-        // Update PlayerProfile
-        ProfileManager profileManager = MythicPrison.getInstance().getProfileManager();
-        PlayerProfile profile = profileManager.getProfile(player);
-        if (profile != null) {
-            profile.setMultiplier(type, multiplier, durationMs);
-        }
-        
-        // Update local storage
-        playerMultipliers.computeIfAbsent(uuid, k -> new ConcurrentHashMap<>()).put(type, multiplier);
-        
-        if (durationMs > 0) {
-            multiplierExpiry.computeIfAbsent(uuid, k -> new ConcurrentHashMap<>())
-                .put(type, System.currentTimeMillis() + durationMs);
-        } else {
-            Map<String, Long> expiry = multiplierExpiry.get(uuid);
-            if (expiry != null) {
-                expiry.remove(type);
+            if (durationMs > 0) {
+                multiplierExpiry.computeIfAbsent(playerUUID, k -> new HashMap<>())
+                    .put(type, System.currentTimeMillis() + durationMs);
+            } else {
+                Map<String, Long> expiry = multiplierExpiry.get(playerUUID);
+                if (expiry != null) {
+                    expiry.remove(type);
+                }
             }
+        
+            // Save to database asynchronously
+            saveMultipliersToDatabase(player);
+        
+        } catch (Exception e) {
+            System.err.println("[MultiplierManager] Error setting multiplier: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -96,24 +99,26 @@ public class MultiplierManager {
     }
 
     public void removeMultiplier(Player player, String type) {
-        String uuid = player.getUuid().toString();
+        try {
+            String playerUUID = player.getUuid().toString();
         
-        // Update PlayerProfile
-        ProfileManager profileManager = MythicPrison.getInstance().getProfileManager();
-        PlayerProfile profile = profileManager.getProfile(player);
-        if (profile != null) {
-            profile.removeMultiplier(type);
-        }
+            // Remove from in-memory storage
+            Map<String, Double> multipliers = playerMultipliers.get(playerUUID);
+            if (multipliers != null) {
+                multipliers.remove(type);
+            }
         
-        // Update local storage
-        Map<String, Double> multipliers = playerMultipliers.get(uuid);
-        if (multipliers != null) {
-            multipliers.remove(type);
-        }
+            Map<String, Long> expiry = multiplierExpiry.get(playerUUID);
+            if (expiry != null) {
+                expiry.remove(type);
+            }
         
-        Map<String, Long> expiry = multiplierExpiry.get(uuid);
-        if (expiry != null) {
-            expiry.remove(type);
+            // Save to database asynchronously
+            saveMultipliersToDatabase(player);
+        
+        } catch (Exception e) {
+            System.err.println("[MultiplierManager] Error removing multiplier: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -177,5 +182,108 @@ public class MultiplierManager {
         }
         
         return result;
+    }
+
+    // Add method to load multipliers from database
+    public void loadMultipliersFromDatabase(Player player) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                Profile profile = Profile.loadAsync(player.getUuid().toString()).join();
+                if (profile != null) {
+                    String playerUUID = player.getUuid().toString();
+                
+                    // Load multipliers
+                    Map<String, Double> dbMultipliers = profile.getMultipliers();
+                    if (dbMultipliers != null && !dbMultipliers.isEmpty()) {
+                        playerMultipliers.put(playerUUID, new HashMap<>(dbMultipliers));
+                    }
+                
+                    // Load expiry times
+                    Map<String, Long> dbExpiry = profile.getMultiplierExpiry();
+                    if (dbExpiry != null && !dbExpiry.isEmpty()) {
+                        multiplierExpiry.put(playerUUID, new HashMap<>(dbExpiry));
+                    }
+                
+                    // Clean expired multipliers
+                    cleanExpiredMultipliers(player);
+                }
+            } catch (Exception e) {
+                System.err.println("[MultiplierManager] Error loading multipliers for " + player.getUsername() + ": " + e.getMessage());
+            }
+        });
+    }
+
+    // Add method to save multipliers to database
+    private void saveMultipliersToDatabase(Player player) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                Profile profile = Profile.loadAsync(player.getUuid().toString()).join();
+                if (profile != null) {
+                    String playerUUID = player.getUuid().toString();
+                
+                    // Save multipliers
+                    Map<String, Double> multipliers = playerMultipliers.get(playerUUID);
+                    if (multipliers != null) {
+                        profile.setMultipliers(multipliers);
+                    }
+                
+                    // Save expiry times
+                    Map<String, Long> expiry = multiplierExpiry.get(playerUUID);
+                    if (expiry != null) {
+                        profile.setMultiplierExpiry(expiry);
+                    }
+                
+                    // Save to database
+                    profile.saveAsync();
+                }
+            } catch (Exception e) {
+                System.err.println("[MultiplierManager] Error saving multipliers for " + player.getUsername() + ": " + e.getMessage());
+            }
+        });
+    }
+
+    // Update the initializePlayer method
+    public void initializePlayer(Player player) {
+        String playerUUID = player.getUuid().toString();
+    
+        // Initialize in-memory maps if not present
+        playerMultipliers.putIfAbsent(playerUUID, new HashMap<>());
+        multiplierExpiry.putIfAbsent(playerUUID, new HashMap<>());
+    
+        // Load from database
+        loadMultipliersFromDatabase(player);
+    }
+
+    // Add this method to clean expired multipliers
+    private void cleanExpiredMultipliers(Player player) {
+        try {
+            String playerUUID = player.getUuid().toString();
+        
+            Map<String, Double> multipliers = playerMultipliers.get(playerUUID);
+            Map<String, Long> expiry = multiplierExpiry.get(playerUUID);
+        
+            if (multipliers != null && expiry != null) {
+                long currentTime = System.currentTimeMillis();
+            
+                // Find expired multipliers
+                var expiredKeys = expiry.entrySet().stream()
+                    .filter(entry -> entry.getValue() < currentTime)
+                    .map(Map.Entry::getKey)
+                    .toList();
+            
+                // Remove expired multipliers
+                for (String key : expiredKeys) {
+                    multipliers.remove(key);
+                    expiry.remove(key);
+                }
+            
+                // Save changes if any multipliers were removed
+                if (!expiredKeys.isEmpty()) {
+                    saveMultipliersToDatabase(player);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[MultiplierManager] Error cleaning expired multipliers for " + player.getUsername() + ": " + e.getMessage());
+        }
     }
 }

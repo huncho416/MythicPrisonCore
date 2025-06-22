@@ -84,38 +84,41 @@ private void buildScoreboardContent(Player player, Sidebar sidebar) {
         // Empty line at top
         sidebar.createLine(new Sidebar.ScoreboardLine("empty1", Component.text(""), lineNumber--));
 
-        // Currencies section (NO ICONS - clean text only)
-        sidebar.createLine(new Sidebar.ScoreboardLine("money", Component.text("§7Money: §a" + formatNumber(money)), lineNumber--));
-        sidebar.createLine(new Sidebar.ScoreboardLine("tokens", Component.text("§7Tokens: §6" + formatNumber(tokens)), lineNumber--));
-        sidebar.createLine(new Sidebar.ScoreboardLine("souls", Component.text("§7Souls: §5" + formatNumber(souls)), lineNumber--));
+        // Currencies section (Added $ sign for money)
+        sidebar.createLine(new Sidebar.ScoreboardLine("money", Component.text("§fMoney: §a$" + formatNumber(money)), lineNumber--));
+        sidebar.createLine(new Sidebar.ScoreboardLine("tokens", Component.text("§fTokens: §6" + formatNumber(tokens)), lineNumber--));
+        sidebar.createLine(new Sidebar.ScoreboardLine("souls", Component.text("§fSouls: §5" + formatNumber(souls)), lineNumber--));
 
         // Empty line separator
         sidebar.createLine(new Sidebar.ScoreboardLine("empty2", Component.text(""), lineNumber--));
 
-        // Progression section (WITH SAME ICONS AS CHAT/TAB FORMAT)
-        sidebar.createLine(new Sidebar.ScoreboardLine("rank", Component.text("§7Rank: §f" + currentRank), lineNumber--));
-        sidebar.createLine(new Sidebar.ScoreboardLine("prestiges", Component.text("§7✦ Prestiges: §b" + prestiges), lineNumber--));
-        sidebar.createLine(new Sidebar.ScoreboardLine("rebirths", Component.text("§7⚡ Rebirths: §d" + rebirths), lineNumber--));
-        sidebar.createLine(new Sidebar.ScoreboardLine("ascensions", Component.text("§7⭐ Ascensions: §e" + ascensions), lineNumber--));
+        // Progression section (Changed §7 to §f for white text)
+        sidebar.createLine(new Sidebar.ScoreboardLine("rank", Component.text("§fRank: §f" + currentRank), lineNumber--));
+        sidebar.createLine(new Sidebar.ScoreboardLine("prestiges", Component.text("§f✦ Prestiges: §b" + prestiges), lineNumber--));
+        sidebar.createLine(new Sidebar.ScoreboardLine("rebirths", Component.text("§f⚡ Rebirths: §d" + rebirths), lineNumber--));
+        sidebar.createLine(new Sidebar.ScoreboardLine("ascensions", Component.text("§f⭐ Ascensions: §e" + ascensions), lineNumber--));
 
         // Empty line separator
         sidebar.createLine(new Sidebar.ScoreboardLine("empty3", Component.text(""), lineNumber--));
 
-        // Backpack section
+        // Backpack section (Changed §7 to §f for white text)
         if (backpack != null) {
             int currentVolume = backpack.getCurrentVolume();
             int maxVolume = backpack.getMaxVolume();
-            sidebar.createLine(new Sidebar.ScoreboardLine("backpack", Component.text("§7🎒 Backpack: §f" + currentVolume + "§7/§f" + maxVolume), lineNumber--));
+            sidebar.createLine(new Sidebar.ScoreboardLine("backpack", Component.text("§f🎒 Backpack: §f" + currentVolume + "§f/§f" + maxVolume), lineNumber--));
         } else {
-            sidebar.createLine(new Sidebar.ScoreboardLine("backpack", Component.text("§7🎒 Backpack: §cNot loaded"), lineNumber--));
+            sidebar.createLine(new Sidebar.ScoreboardLine("backpack", Component.text("§f🎒 Backpack: §cNot loaded"), lineNumber--));
         }
 
-        // Online players
+        // Online players (Changed §7 to §f for white text)
         int onlinePlayers = MinecraftServer.getConnectionManager().getOnlinePlayers().size();
-        sidebar.createLine(new Sidebar.ScoreboardLine("online", Component.text("§7👥 Online: §a" + onlinePlayers), lineNumber--));
+        sidebar.createLine(new Sidebar.ScoreboardLine("online", Component.text("§f👥 Online: §a" + onlinePlayers), lineNumber--));
 
-        // Empty line at bottom
+        // Empty line separator
         sidebar.createLine(new Sidebar.ScoreboardLine("empty4", Component.text(""), lineNumber--));
+
+        // Server website at bottom (Last line - no empty line after)
+        sidebar.createLine(new Sidebar.ScoreboardLine("website", Component.text("§7play.mythicpvp.net"), lineNumber--));
 
     } catch (Exception e) {
         System.err.println("[ScoreboardManager] Error building scoreboard content: " + e.getMessage());

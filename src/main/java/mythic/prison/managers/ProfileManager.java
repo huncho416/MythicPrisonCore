@@ -48,6 +48,12 @@ public class ProfileManager {
             profile.setLastSeen(System.currentTimeMillis());
             playerProfiles.put(uuid, profile);
             
+            // Ensure default multipliers are set
+            ensureDefaultMultipliers(player);
+            
+            // Sync multipliers with MultiplierManager
+            syncMultipliers(player);
+            
             // Save immediately to update last seen and username
             saveProfileToDatabase(profile);
         });
@@ -86,7 +92,35 @@ public class ProfileManager {
     }
 
     public PlayerProfile getProfile(String uuid) {
-        return playerProfiles.get(uuid);
+        // Get from playerProfiles cache first (not profileCache)
+        PlayerProfile profile = playerProfiles.get(uuid);
+        if (profile != null) {
+            return profile;
+        }
+        
+        // Load from database synchronously (since this is called in many places that expect immediate results)
+        try {
+            CompletableFuture<PlayerProfile> future = loadProfileFromDatabase(uuid);
+            profile = future.get(); // Wait for database result
+            
+            if (profile == null) {
+                // Create new profile if doesn't exist
+                profile = new PlayerProfile(uuid);
+                saveProfileToDatabase(profile);
+            }
+            
+            // Cache it in playerProfiles
+            playerProfiles.put(uuid, profile);
+            return profile;
+            
+        } catch (Exception e) {
+            System.err.println("[ProfileManager] Error loading profile for " + uuid + ": " + e.getMessage());
+            
+            // Create emergency profile
+            profile = new PlayerProfile(uuid);
+            playerProfiles.put(uuid, profile);
+            return profile;
+        }
     }
 
     // Database operations
@@ -251,5 +285,41 @@ public class ProfileManager {
                 }
             }
         }
+    }
+
+    // Add this method to sync multipliers
+    public void syncMultipliers(Player player) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                PlayerProfile profile = getProfile(player);
+                if (profile != null) {
+                    MultiplierManager multiplierManager = MythicPrison.getInstance().getMultiplierManager();
+                    if (multiplierManager != null) {
+                        // Copy multipliers from PlayerProfile to MultiplierManager
+                        Map<String, Double> multipliers = profile.getMultipliers();
+                        Map<String, Long> expiry = profile.getMultiplierExpiry();
+                        
+                        String playerUUID = player.getUuid().toString();
+                        
+                        if (multipliers != null && !multipliers.isEmpty()) {
+                            for (Map.Entry<String, Double> entry : multipliers.entrySet()) {
+                                String type = entry.getKey();
+                                double value = entry.getValue();
+                                long duration = 0;
+                                
+                                if (expiry != null && expiry.containsKey(type)) {
+                                    long expiryTime = expiry.get(type);
+                                    duration = Math.max(0, expiryTime - System.currentTimeMillis());
+                                }
+                                
+                                multiplierManager.setMultiplier(player, type, value, duration);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("[ProfileManager] Error syncing multipliers for " + player.getUsername() + ": " + e.getMessage());
+            }
+        });
     }
 }

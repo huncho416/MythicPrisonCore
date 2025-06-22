@@ -56,19 +56,19 @@ public class SchematicWorldManager {
                     // Check if player is significantly outside the mine area (not just 1-2 blocks)
                     Pos currentPos = event.getPlayer().getPosition();
                     Pos newPos = event.getNewPosition();
-                
+
                     // Allow some tolerance for spawn area and glowstone blocks
                     double tolerance = 5.0; // 5 block tolerance
-                    boolean significantlyOutside = 
-                        newPos.x() < world.getMinX() - tolerance || newPos.x() > world.getMaxX() + tolerance ||
-                        newPos.z() < world.getMinZ() - tolerance || newPos.z() > world.getMaxZ() + tolerance ||
-                        newPos.y() < world.getMinY() - tolerance || newPos.y() > world.getMaxY() + tolerance;
-                
+                    boolean significantlyOutside =
+                            newPos.x() < world.getMinX() - tolerance || newPos.x() > world.getMaxX() + tolerance ||
+                                    newPos.z() < world.getMinZ() - tolerance || newPos.z() > world.getMaxZ() + tolerance ||
+                                    newPos.y() < world.getMinY() - tolerance || newPos.y() > world.getMaxY() + tolerance;
+
                     if (significantlyOutside) {
                         // Player is trying to leave the mine area significantly
                         Pos safePosition = world.getSafePosition(currentPos);
                         event.setNewPosition(safePosition);
-                    
+
                         // Only send warning message occasionally to avoid spam
                         if (System.currentTimeMillis() % 3000 < 100) { // Every 3 seconds max
                             player.sendMessage("§c§lYou cannot leave this area!");
@@ -145,7 +145,7 @@ public class SchematicWorldManager {
         try {
             // Check if we're dealing with default schematics
             String fileName = schematicFile.getName().toLowerCase();
-            
+
             if (fileName.contains("spawn")) {
                 System.out.println("[SchematicWorldManager] Creating default spawn schematic");
                 return createDefaultSpawnSchematic();
@@ -176,26 +176,26 @@ public class SchematicWorldManager {
         // Create a simple spawn platform
         int sizeX = 20, sizeY = 5, sizeZ = 20;
 
-        data.setDimensions(-sizeX/2, 0, -sizeZ/2, sizeX/2, sizeY, sizeZ/2);
+        data.setDimensions(-sizeX / 2, 0, -sizeZ / 2, sizeX / 2, sizeY, sizeZ / 2);
         // Set spawn point on the platform, not inside blocks
         data.setSpawnPoint(new Pos(0, 2, 0)); // 2 blocks above the platform
 
         // Create a simple spawn platform with lighting
-        for (int x = -sizeX/2; x <= sizeX/2; x++) {
-            for (int z = -sizeZ/2; z <= sizeZ/2; z++) {
+        for (int x = -sizeX / 2; x <= sizeX / 2; x++) {
+            for (int z = -sizeZ / 2; z <= sizeZ / 2; z++) {
                 // Ground level platform
                 data.addBlock(x, 0, z, Block.GRASS_BLOCK);
-            
+
                 // Small border around the platform
-                if (x == -sizeX/2 || x == sizeX/2 || z == -sizeZ/2 || z == sizeZ/2) {
+                if (x == -sizeX / 2 || x == sizeX / 2 || z == -sizeZ / 2 || z == sizeZ / 2) {
                     data.addBlock(x, 1, z, Block.STONE_BRICKS);
                 }
             }
         }
 
         // Add dense lighting throughout the spawn area for full brightness
-        for (int x = -sizeX/2; x <= sizeX/2; x += 3) {
-            for (int z = -sizeZ/2; z <= sizeZ/2; z += 3) {
+        for (int x = -sizeX / 2; x <= sizeX / 2; x += 3) {
+            for (int z = -sizeZ / 2; z <= sizeZ / 2; z += 3) {
                 // Place light sources every 3 blocks
                 data.addBlock(x, 1, z, Block.COBBLESTONE);
                 data.addBlock(x, 2, z, Block.GLOWSTONE);
@@ -203,13 +203,13 @@ public class SchematicWorldManager {
         }
 
         // Add perimeter lighting
-        for (int x = -sizeX/2; x <= sizeX/2; x += 2) {
-            data.addBlock(x, 3, -sizeZ/2, Block.GLOWSTONE);
-            data.addBlock(x, 3, sizeZ/2, Block.GLOWSTONE);
+        for (int x = -sizeX / 2; x <= sizeX / 2; x += 2) {
+            data.addBlock(x, 3, -sizeZ / 2, Block.GLOWSTONE);
+            data.addBlock(x, 3, sizeZ / 2, Block.GLOWSTONE);
         }
-        for (int z = -sizeZ/2; z <= sizeZ/2; z += 2) {
-            data.addBlock(-sizeX/2, 3, z, Block.GLOWSTONE);
-            data.addBlock(sizeX/2, 3, z, Block.GLOWSTONE);
+        for (int z = -sizeZ / 2; z <= sizeZ / 2; z += 2) {
+            data.addBlock(-sizeX / 2, 3, z, Block.GLOWSTONE);
+            data.addBlock(sizeX / 2, 3, z, Block.GLOWSTONE);
         }
 
         // Remove the central beacon that was causing problems
@@ -225,13 +225,13 @@ public class SchematicWorldManager {
         // Create a simple 50x50x20 mine area
         int sizeX = 50, sizeY = 20, sizeZ = 50;
 
-        data.setDimensions(-sizeX/2, 0, -sizeZ/2, sizeX/2, sizeY, sizeZ/2);
+        data.setDimensions(-sizeX / 2, 0, -sizeZ / 2, sizeX / 2, sizeY, sizeZ / 2);
         // Set spawn point safely in the middle of the platform, well above any blocks
         data.setSpawnPoint(new Pos(0, sizeY + 3, 0)); // 3 blocks above the platform for safety
 
         // Create walls and floor with proper lighting
-        for (int x = -sizeX/2; x <= sizeX/2; x++) {
-            for (int z = -sizeZ/2; z <= sizeZ/2; z++) {
+        for (int x = -sizeX / 2; x <= sizeX / 2; x++) {
+            for (int z = -sizeZ / 2; z <= sizeZ / 2; z++) {
                 for (int y = 0; y <= sizeY; y++) {
                     Block block;
 
@@ -240,7 +240,7 @@ public class SchematicWorldManager {
                         block = Block.BEDROCK;
                     }
                     // Walls - bedrock
-                    else if (x == -sizeX/2 || x == sizeX/2 || z == -sizeZ/2 || z == sizeZ/2) {
+                    else if (x == -sizeX / 2 || x == sizeX / 2 || z == -sizeZ / 2 || z == sizeZ / 2) {
                         block = Block.BEDROCK;
                     }
                     // Interior - fill with stone that can be mined
@@ -255,33 +255,33 @@ public class SchematicWorldManager {
 
         // Add comprehensive lighting system throughout the mine
         // Dense ceiling lighting every 5 blocks for maximum brightness
-        for (int x = -sizeX/2 + 3; x <= sizeX/2 - 3; x += 5) {
-            for (int z = -sizeZ/2 + 3; z <= sizeZ/2 - 3; z += 5) {
+        for (int x = -sizeX / 2 + 3; x <= sizeX / 2 - 3; x += 5) {
+            for (int z = -sizeZ / 2 + 3; z <= sizeZ / 2 - 3; z += 5) {
                 // Replace stone with glowstone for ceiling lighting
                 data.addBlock(x, sizeY - 1, z, Block.GLOWSTONE);
             }
         }
 
         // Add wall lighting every 4 blocks
-        for (int i = -sizeX/2 + 2; i <= sizeX/2 - 2; i += 4) {
+        for (int i = -sizeX / 2 + 2; i <= sizeX / 2 - 2; i += 4) {
             // Top and bottom walls at multiple heights
-            data.addBlock(i, sizeY - 3, -sizeZ/2, Block.GLOWSTONE);
-            data.addBlock(i, sizeY - 3, sizeZ/2, Block.GLOWSTONE);
-            data.addBlock(i, sizeY - 7, -sizeZ/2, Block.GLOWSTONE);
-            data.addBlock(i, sizeY - 7, sizeZ/2, Block.GLOWSTONE);
+            data.addBlock(i, sizeY - 3, -sizeZ / 2, Block.GLOWSTONE);
+            data.addBlock(i, sizeY - 3, sizeZ / 2, Block.GLOWSTONE);
+            data.addBlock(i, sizeY - 7, -sizeZ / 2, Block.GLOWSTONE);
+            data.addBlock(i, sizeY - 7, sizeZ / 2, Block.GLOWSTONE);
         }
-    
-        for (int i = -sizeZ/2 + 2; i <= sizeZ/2 - 2; i += 4) {
+
+        for (int i = -sizeZ / 2 + 2; i <= sizeZ / 2 - 2; i += 4) {
             // Left and right walls at multiple heights
-            data.addBlock(-sizeX/2, sizeY - 3, i, Block.GLOWSTONE);
-            data.addBlock(sizeX/2, sizeY - 3, i, Block.GLOWSTONE);
-            data.addBlock(-sizeX/2, sizeY - 7, i, Block.GLOWSTONE);
-            data.addBlock(sizeX/2, sizeY - 7, i, Block.GLOWSTONE);
+            data.addBlock(-sizeX / 2, sizeY - 3, i, Block.GLOWSTONE);
+            data.addBlock(sizeX / 2, sizeY - 3, i, Block.GLOWSTONE);
+            data.addBlock(-sizeX / 2, sizeY - 7, i, Block.GLOWSTONE);
+            data.addBlock(sizeX / 2, sizeY - 7, i, Block.GLOWSTONE);
         }
 
         // Add mid-level lighting pillars throughout the mine (but not near spawn)
-        for (int x = -sizeX/2 + 8; x <= sizeX/2 - 8; x += 8) {
-            for (int z = -sizeZ/2 + 8; z <= sizeZ/2 - 8; z += 8) {
+        for (int x = -sizeX / 2 + 8; x <= sizeX / 2 - 8; x += 8) {
+            for (int z = -sizeZ / 2 + 8; z <= sizeZ / 2 - 8; z += 8) {
                 // Skip the spawn area to prevent interference
                 if (Math.abs(x) > 5 || Math.abs(z) > 5) {
                     // Create lighting pillars from floor to near ceiling
@@ -298,7 +298,7 @@ public class SchematicWorldManager {
                 data.addBlock(x, sizeY, z, Block.STONE_BRICKS);
             }
         }
-    
+
         // No glowstone directly at spawn level to prevent getting stuck
         // Just corner lighting well away from spawn point
         data.addBlock(-4, sizeY + 1, -4, Block.GLOWSTONE);
@@ -307,8 +307,8 @@ public class SchematicWorldManager {
         data.addBlock(4, sizeY + 1, 4, Block.GLOWSTONE);
 
         // Add extra floor lighting in a grid pattern (away from spawn area)
-        for (int x = -sizeX/2 + 5; x <= sizeX/2 - 5; x += 10) {
-            for (int z = -sizeZ/2 + 5; z <= sizeZ/2 - 5; z += 10) {
+        for (int x = -sizeX / 2 + 5; x <= sizeX / 2 - 5; x += 10) {
+            for (int z = -sizeZ / 2 + 5; z <= sizeZ / 2 - 5; z += 10) {
                 // Skip near spawn area
                 if (Math.abs(x) > 8 || Math.abs(z) > 8) {
                     data.addBlock(x, 1, z, Block.GLOWSTONE);
@@ -326,7 +326,7 @@ public class SchematicWorldManager {
         if ("spawn".equals(worldName)) {
             return; // Skip boundary setup for spawn
         }
-    
+
         // Remove the physical barrier setup to prevent players getting stuck in blocks
         // The movement event handler will handle boundary enforcement
     }
@@ -347,7 +347,7 @@ public class SchematicWorldManager {
         SchematicWorld world = worlds.get(worldName);
         if (world != null && world.getInstance() != null) {
             playerWorlds.put(player.getUuid(), worldName);
-            
+
             // Check if player is already in the target instance
             if (player.getInstance() == world.getInstance()) {
                 // Player is already in the target instance, just teleport to the spawn point
@@ -369,6 +369,7 @@ public class SchematicWorldManager {
 
     /**
      * Get a schematic world by name
+     *
      * @param worldName The name of the world to retrieve
      * @return The SchematicWorld or null if not found
      */
@@ -378,6 +379,7 @@ public class SchematicWorldManager {
 
     /**
      * Get the spawn position for a specific world
+     *
      * @param worldName The name of the world
      * @return The spawn position or null if world not found
      */
@@ -388,6 +390,7 @@ public class SchematicWorldManager {
 
     /**
      * Check if a world exists
+     *
      * @param worldName The name of the world to check
      * @return true if the world exists, false otherwise
      */
@@ -438,6 +441,7 @@ public class SchematicWorldManager {
 
     /**
      * Remove a schematic world and clean up its resources
+     *
      * @param worldName The name of the world to remove
      * @return true if the world was removed, false if it didn't exist
      */
@@ -446,7 +450,7 @@ public class SchematicWorldManager {
         if (world == null) {
             return false;
         }
-        
+
         // Remove all players from the world before removing it
         Instance instance = world.getInstance();
         if (instance != null) {
@@ -455,7 +459,7 @@ public class SchematicWorldManager {
             for (Player player : playersInWorld) {
                 // Remove player tracking for this world
                 playerWorlds.remove(player.getUuid());
-                
+
                 // Move player to spawn world or main world
                 SchematicWorld spawnWorld = worlds.get("spawn");
                 if (spawnWorld != null && spawnWorld.getInstance() != null) {
@@ -465,22 +469,23 @@ public class SchematicWorldManager {
                     player.setInstance(MinecraftServer.getInstanceManager().getInstances().iterator().next());
                 }
             }
-        
+
             // Unregister the instance
             MinecraftServer.getInstanceManager().unregisterInstance(instance);
         }
-        
+
         // Remove from tracking maps
         worlds.remove(worldName);
-        
+
         // Remove any player world tracking for this world
         playerWorlds.entrySet().removeIf(entry -> worldName.equals(entry.getValue()));
-        
+
         return true;
     }
 
     /**
      * Get all loaded schematic worlds
+     *
      * @return A map of world names to SchematicWorld objects
      */
     public Map<String, SchematicWorld> getAllWorlds() {
@@ -488,13 +493,13 @@ public class SchematicWorldManager {
     }
 
     private void setupWorldLighting(InstanceContainer instance) {
-    // Set the world to always be day (light level 15)
-    instance.setTimeRate(0);
-    instance.setTime(6000); // Noon
-    
-    // Ensure the world has proper ambient lighting
-    // This prevents the void from being completely dark
-}
+        // Set the world to always be day (light level 15)
+        instance.setTimeRate(0);
+        instance.setTime(6000); // Noon
+
+        // Ensure the world has proper ambient lighting
+        // This prevents the void from being completely dark
+    }
 
     // Inner classes for data structures
     // Change the SchematicWorld class from private to public
@@ -516,8 +521,8 @@ public class SchematicWorldManager {
 
         public boolean isWithinBounds(Pos position) {
             return position.x() >= minX && position.x() <= maxX &&
-                   position.y() >= minY && position.y() <= maxY &&
-                   position.z() >= minZ && position.z() <= maxZ;
+                    position.y() >= minY && position.y() <= maxY &&
+                    position.z() >= minZ && position.z() <= maxZ;
         }
 
         public Pos getSafePosition(Pos currentPos) {
@@ -528,15 +533,41 @@ public class SchematicWorldManager {
         }
 
         // Getters
-        public int getMinX() { return minX; }
-        public int getMinY() { return minY; }
-        public int getMinZ() { return minZ; }
-        public int getMaxX() { return maxX; }
-        public int getMaxY() { return maxY; }
-        public int getMaxZ() { return maxZ; }
-        public Pos getSpawnPoint() { return spawnPoint; }
-        public Instance getInstance() { return instance; }
-        public void setInstance(Instance instance) { this.instance = instance; }
+        public int getMinX() {
+            return minX;
+        }
+
+        public int getMinY() {
+            return minY;
+        }
+
+        public int getMinZ() {
+            return minZ;
+        }
+
+        public int getMaxX() {
+            return maxX;
+        }
+
+        public int getMaxY() {
+            return maxY;
+        }
+
+        public int getMaxZ() {
+            return maxZ;
+        }
+
+        public Pos getSpawnPoint() {
+            return spawnPoint;
+        }
+
+        public Instance getInstance() {
+            return instance;
+        }
+
+        public void setInstance(Instance instance) {
+            this.instance = instance;
+        }
     }
 
     private static class SchematicData {
@@ -557,17 +588,42 @@ public class SchematicWorldManager {
             blocks.put(x + "," + y + "," + z, new SchematicBlock(x, y, z, block));
         }
 
-        public void setSpawnPoint(Pos spawnPoint) { this.spawnPoint = spawnPoint; }
+        public void setSpawnPoint(Pos spawnPoint) {
+            this.spawnPoint = spawnPoint;
+        }
 
         // Getters
-        public int getMinX() { return minX; }
-        public int getMinY() { return minY; }
-        public int getMinZ() { return minZ; }
-        public int getMaxX() { return maxX; }
-        public int getMaxY() { return maxY; }
-        public int getMaxZ() { return maxZ; }
-        public Pos getSpawnPoint() { return spawnPoint; }
-        public Iterable<SchematicBlock> getBlocks() { return blocks.values(); }
+        public int getMinX() {
+            return minX;
+        }
+
+        public int getMinY() {
+            return minY;
+        }
+
+        public int getMinZ() {
+            return minZ;
+        }
+
+        public int getMaxX() {
+            return maxX;
+        }
+
+        public int getMaxY() {
+            return maxY;
+        }
+
+        public int getMaxZ() {
+            return maxZ;
+        }
+
+        public Pos getSpawnPoint() {
+            return spawnPoint;
+        }
+
+        public Iterable<SchematicBlock> getBlocks() {
+            return blocks.values();
+        }
     }
 
     private static class SchematicBlock {
@@ -580,5 +636,9 @@ public class SchematicWorldManager {
             this.z = z;
             this.block = block;
         }
+    }
+
+    public void registerWorld(String worldName, SchematicWorld world) {
+        worlds.put(worldName, world);
     }
 }

@@ -127,21 +127,31 @@ public class MineManager {
     }
 
     public void teleportToMine(Player player) {
+    try {
         PrivateMine mine = getPlayerMine(player);
+        
         if (mine != null) {
             mine.teleportPlayer(player);
         } else {
-            // Create mine if it doesn't exist
+            // If no private mine exists, create one first
             createPrivateMine(player);
-            // Try again after a short delay
+            
+            // Schedule teleportation after mine creation
             MythicPrison.getInstance().getScheduler().schedule(() -> {
                 PrivateMine newMine = getPlayerMine(player);
                 if (newMine != null) {
                     newMine.teleportPlayer(player);
+                } else {
+                    player.sendMessage("§cFailed to create your mine! Please try again.");
                 }
-            }, 1, java.util.concurrent.TimeUnit.SECONDS);
+            }, 500, java.util.concurrent.TimeUnit.MILLISECONDS);
         }
+    } catch (Exception e) {
+        System.err.println("[MineManager] Error teleporting player to mine: " + e.getMessage());
+        player.sendMessage("§cError teleporting to your mine! Please try again.");
+        e.printStackTrace();
     }
+}
 
     public void teleportToMine(Player player, String targetPlayerName) {
         Player targetPlayer = findPlayerByName(targetPlayerName);
@@ -191,4 +201,50 @@ public class MineManager {
             // For example, beacon effects, special drops, etc.
         }
     }
+
+private void executeGo(Player player) {
+    System.out.println("[MineCommand] NUCLEAR OPTION - Creating brand new mine instance");
+    
+    try {
+        // Create a completely new instance directly
+        net.minestom.server.instance.InstanceManager instanceManager = net.minestom.server.MinecraftServer.getInstanceManager();
+        net.minestom.server.instance.InstanceContainer newMineInstance = instanceManager.createInstanceContainer();
+        
+        // Set up a simple flat world generator for testing
+        newMineInstance.setGenerator(unit -> {
+            unit.modifier().fillHeight(0, 1, net.minestom.server.instance.block.Block.BEDROCK);
+            unit.modifier().fillHeight(1, 60, net.minestom.server.instance.block.Block.STONE);
+            unit.modifier().fillHeight(60, 65, net.minestom.server.instance.block.Block.COAL_ORE);
+            unit.modifier().fillHeight(65, 66, net.minestom.server.instance.block.Block.GRASS_BLOCK);
+        });
+        
+        // Create spawn platform at mine coordinates
+        Pos mineSpawn = new Pos(0, 67, 0);
+        
+        System.out.println("[MineCommand] Created new mine instance: " + newMineInstance.hashCode());
+        System.out.println("[MineCommand] Teleporting to: " + mineSpawn);
+        
+        // DIRECT teleportation bypassing ALL managers
+        player.setInstance(newMineInstance, mineSpawn);
+        
+        player.sendMessage("§a[NUCLEAR] Created and teleported to brand new mine instance!");
+        player.sendMessage("§7Instance ID: " + newMineInstance.hashCode());
+        
+        // Verify the teleportation worked
+        MythicPrison.getInstance().getScheduler().schedule(() -> {
+            if (player.getInstance() == newMineInstance) {
+                player.sendMessage("§a✅ SUCCESS! You are in the new mine instance!");
+                System.out.println("[MineCommand] SUCCESS: Player is in new instance");
+            } else {
+                player.sendMessage("§c❌ FAILED! You are not in the new mine instance!");
+                System.out.println("[MineCommand] FAILED: Player is in: " + player.getInstance().getClass().getSimpleName());
+            }
+        }, 1000, java.util.concurrent.TimeUnit.MILLISECONDS);
+        
+    } catch (Exception e) {
+        System.err.println("[MineCommand] Nuclear option failed: " + e.getMessage());
+        e.printStackTrace();
+        player.sendMessage("§cNuclear option failed: " + e.getMessage());
+    }
+}
 }

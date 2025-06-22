@@ -9,6 +9,7 @@ import com.mongodb.client.MongoDatabase;
 import org.bson.Document;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.UpdateOptions;
+import mythic.prison.player.Profile;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -335,5 +336,35 @@ public class BackpackManager {
         } catch (Exception e) {
             System.err.println("[BackpackManager] Error updating scoreboard: " + e.getMessage());
         }
+    }
+
+    // Add method to sync backpack with profile
+    public void saveBackpackToProfile(Player player, Backpack backpack) {
+        CompletableFuture.supplyAsync(() -> {
+            try {
+                Profile profile = Profile.loadAsync(player.getUuid().toString()).join();
+                if (profile != null) {
+                    profile.updateFromBackpack(backpack);
+                    profile.saveAsync().join();
+                }
+                return null;
+            } catch (Exception e) {
+                System.err.println("Error saving backpack to profile: " + e.getMessage());
+                return null;
+            }
+        });
+    }
+
+    // Add method to load backpack from profile
+    public Backpack loadBackpackFromProfile(Player player) {
+        try {
+            Profile profile = Profile.loadAsync(player.getUuid().toString()).join();
+            if (profile != null) {
+                return profile.toBackpack();
+            }
+        } catch (Exception e) {
+            System.err.println("Error loading backpack from profile: " + e.getMessage());
+        }
+        return new Backpack(player.getUuid().toString());
     }
 }

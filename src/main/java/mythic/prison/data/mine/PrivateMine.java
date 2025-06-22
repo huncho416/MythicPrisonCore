@@ -85,65 +85,105 @@ public class PrivateMine {
     public void teleportPlayer(Player player) {
         try {
             if (mineInstance == null) {
-                // Try to get the instance from SchematicWorldManager
-                SchematicWorldManager schematicManager = MythicPrison.getInstance().getSchematicWorldManager();
-                if (schematicManager != null) {
-                    var world = schematicManager.getWorld(worldName);
-                    if (world != null) {
-                        mineInstance = world.getInstance();
-                    }
-                }
+                createProperMineWorld();
             }
-
-            if (mineInstance != null) {
-                // Check if player is already in this mine instance
-                if (player.getInstance() == mineInstance) {
-                    player.sendMessage("§eYou are already in your mine!");
-                    // Still update tracking even if already in the mine
-                    SchematicWorldManager schematicManager = MythicPrison.getInstance().getSchematicWorldManager();
-                    if (schematicManager != null) {
-                        schematicManager.trackPlayerInWorld(player, worldName);
-                    }
-                    return;
-                }
-
-                // Get spawn point from schematic world or use default
-                Pos spawnPoint = new Pos(0, 21, 0); // Default spawn point above the mine
-                
-                SchematicWorldManager schematicManager = MythicPrison.getInstance().getSchematicWorldManager();
-                if (schematicManager != null) {
-                    var world = schematicManager.getWorld(worldName);
-                    if (world != null) {
-                        spawnPoint = world.getSpawnPoint();
-                    }
-                    
-                    // Track player in the world BEFORE teleporting
-                    schematicManager.trackPlayerInWorld(player, worldName);
-
-                }
-                
-                // Teleport the player
-                player.setInstance(mineInstance, spawnPoint);
-                
-                // Double-check tracking after teleportation with a small delay
-                if (schematicManager != null) {
-                    MythicPrison.getInstance().getScheduler().schedule(() -> {
-                        schematicManager.trackPlayerInWorld(player, worldName);
-
-                        
-                        String currentWorld = schematicManager.getPlayerWorld(player);
-
-                    }, 100, java.util.concurrent.TimeUnit.MILLISECONDS);
-                }
-                
-                player.sendMessage("§aTeleported to " + mineName + "!");
-            } else {
-                player.sendMessage("§cYour mine instance is not available! Please try again in a moment.");
-                System.err.println("Mine instance is null for player: " + ownerName);
-            }
-            
+            teleportPlayerToInstance(player);
         } catch (Exception e) {
             System.err.println("Error teleporting player " + player.getUsername() + " to mine: " + e.getMessage());
+            player.sendMessage("§cError teleporting to mine! Please try again.");
+            e.printStackTrace();
+        }
+    }
+
+    private void createProperMineWorld() {
+        try {
+            // Create instance directly with mine generator
+            net.minestom.server.instance.InstanceManager instanceManager = net.minestom.server.MinecraftServer.getInstanceManager();
+            net.minestom.server.instance.InstanceContainer newMineInstance = instanceManager.createInstanceContainer();
+        
+            // Set up proper mine world generator
+            newMineInstance.setGenerator(unit -> {
+                // Create a proper mine layout
+                unit.modifier().fillHeight(0, 1, net.minestom.server.instance.block.Block.BEDROCK);
+            
+                // Mine layers with different ores
+                unit.modifier().fillHeight(1, 10, net.minestom.server.instance.block.Block.STONE);
+                unit.modifier().fillHeight(10, 15, net.minestom.server.instance.block.Block.COAL_ORE);
+                unit.modifier().fillHeight(15, 18, net.minestom.server.instance.block.Block.IRON_ORE);
+                unit.modifier().fillHeight(18, 20, net.minestom.server.instance.block.Block.GOLD_ORE);
+            
+                // Surface layer
+                unit.modifier().fillHeight(20, 21, net.minestom.server.instance.block.Block.GRASS_BLOCK);
+            
+                // Create spawn platform
+                int mineSize = getMineSize();
+                for (int x = -2; x <= 2; x++) {
+                    for (int z = -2; z <= 2; z++) {
+                        unit.modifier().setBlock(x, 21, z, net.minestom.server.instance.block.Block.STONE_BRICKS);
+                        unit.modifier().setBlock(x, 22, z, net.minestom.server.instance.block.Block.AIR);
+                        unit.modifier().setBlock(x, 23, z, net.minestom.server.instance.block.Block.AIR);
+                    }
+                }
+            });
+        
+            this.mineInstance = newMineInstance;
+        
+            // Register with SchematicWorldManager for tracking
+            SchematicWorldManager schematicManager = MythicPrison.getInstance().getSchematicWorldManager();
+            if (schematicManager != null) {
+                // Create a custom SchematicWorld entry with proper constructor parameters
+                int mineSize = getMineSize();
+                int minX = -mineSize / 2;
+                int minZ = -mineSize / 2;
+                int maxX = mineSize / 2;
+                int maxZ = mineSize / 2;
+                int minY = 0;
+                int maxY = 50;
+                Pos spawnPoint = new Pos(0, 22, 0);
+            
+                var schematicWorld = new SchematicWorldManager.SchematicWorld(
+                    minX, minY, minZ, maxX, maxY, maxZ, spawnPoint
+                );
+                schematicWorld.setInstance(newMineInstance);
+                schematicManager.registerWorld(worldName, schematicWorld);
+            }
+        } catch (Exception e) {
+            System.err.println("[PrivateMine] Failed to create proper mine world: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private void teleportPlayerToInstance(Player player) {
+        try {
+            if (mineInstance == null) {
+                player.sendMessage("§cYour mine instance is not available! Please try again in a moment.");
+                return;
+            }
+
+            // Check if player is already in this mine instance
+            if (player.getInstance() == mineInstance) {
+                player.sendMessage("§eYou are already in your mine!");
+                return;
+            }
+
+            // Use proper mine spawn point
+            Pos spawnPoint = new Pos(0, 22, 0);
+        
+            // Teleport the player
+            player.setInstance(mineInstance, spawnPoint);
+        
+            // Track with SchematicWorldManager
+            SchematicWorldManager schematicManager = MythicPrison.getInstance().getSchematicWorldManager();
+            if (schematicManager != null) {
+                schematicManager.trackPlayerInWorld(player, worldName);
+            }
+        
+            player.sendMessage("§aTeleported to " + mineName + "!");
+            player.sendMessage("§7Mine Size: §e" + getMineSize() + "x" + getMineSize());
+            player.sendMessage("§7Beacon Level: §e" + beaconLevel);
+        
+        } catch (Exception e) {
+            System.err.println("Error in teleportPlayerToInstance for player " + player.getUsername() + ": " + e.getMessage());
             player.sendMessage("§cError teleporting to mine! Please try again.");
             e.printStackTrace();
         }
