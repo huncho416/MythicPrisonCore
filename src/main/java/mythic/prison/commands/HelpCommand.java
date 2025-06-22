@@ -1,4 +1,3 @@
-
 package mythic.prison.commands;
 
 import mythic.prison.utils.ChatUtil;
@@ -359,7 +358,8 @@ public class HelpCommand extends Command {
         ChatUtil.sendMessage(player, "§d/ascension §7- View ascension info (costs money)");
         ChatUtil.sendMessage(player, "");
         ChatUtil.sendMessage(player, "§e§lMining Commands:");
-        ChatUtil.sendMessage(player, "§d/mine [name] §7- Teleport to mine");
+        ChatUtil.sendMessage(player, "§d/mine §7- Show mine help menu");
+        ChatUtil.sendMessage(player, "§d/mine go §7- Teleport to your mine");
         ChatUtil.sendMessage(player, "§d/visit <location> §7- Teleport to locations");
         ChatUtil.sendMessage(player, "§d/backpack §7- Open backpack");
         ChatUtil.sendMessage(player, "§d/pickaxe §7- View pickaxe information");

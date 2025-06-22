@@ -99,6 +99,11 @@ public class PrivateMine {
                 // Check if player is already in this mine instance
                 if (player.getInstance() == mineInstance) {
                     player.sendMessage("§eYou are already in your mine!");
+                    // Still update tracking even if already in the mine
+                    SchematicWorldManager schematicManager = MythicPrison.getInstance().getSchematicWorldManager();
+                    if (schematicManager != null) {
+                        schematicManager.trackPlayerInWorld(player, worldName);
+                    }
                     return;
                 }
 
@@ -111,13 +116,24 @@ public class PrivateMine {
                     if (world != null) {
                         spawnPoint = world.getSpawnPoint();
                     }
+                    
+                    // Track player in the world BEFORE teleporting
+                    schematicManager.trackPlayerInWorld(player, worldName);
+
                 }
                 
+                // Teleport the player
                 player.setInstance(mineInstance, spawnPoint);
                 
-                // Track player in the world
+                // Double-check tracking after teleportation with a small delay
                 if (schematicManager != null) {
-                    schematicManager.trackPlayerInWorld(player, worldName);
+                    MythicPrison.getInstance().getScheduler().schedule(() -> {
+                        schematicManager.trackPlayerInWorld(player, worldName);
+
+                        
+                        String currentWorld = schematicManager.getPlayerWorld(player);
+
+                    }, 100, java.util.concurrent.TimeUnit.MILLISECONDS);
                 }
                 
                 player.sendMessage("§aTeleported to " + mineName + "!");
@@ -149,8 +165,6 @@ public class PrivateMine {
         // - Apply beacon effects
         // - Check for special drops based on mine level
         // - Custom block regeneration
-        
-        System.out.println("Block broken in " + mineName + ": " + blockType + " (Multiplier: " + finalMultiplier + ")");
     }
 
     // Getters and setters

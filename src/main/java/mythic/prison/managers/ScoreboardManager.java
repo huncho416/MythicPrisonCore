@@ -6,6 +6,7 @@ import net.minestom.server.entity.Player;
 import net.minestom.server.scoreboard.Sidebar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.minestom.server.MinecraftServer;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -18,113 +19,143 @@ public class ScoreboardManager {
         createScoreboard(player);
     }
 
-    public void createScoreboard(Player player) {
-        Sidebar sidebar = new Sidebar(Component.text("§d§lPRISON", NamedTextColor.LIGHT_PURPLE));
+public void updatePlayerScoreboard(Player player) {
+    try {
+        String playerUUID = player.getUuid().toString();
         
-        // Remove the setNumberFormat line - it doesn't exist in this version
-        updateScoreboard(player, sidebar);
-        
-        sidebar.addViewer(player);
-        playerScoreboards.put(player.getUuid().toString(), sidebar);
-    }
-
-    public void updateScoreboard(Player player, Sidebar sidebar) {
-        if (sidebar == null) return;
-
-        try {
-            CurrencyManager currencyManager = MythicPrison.getInstance().getCurrencyManager();
-            StatsManager statsManager = MythicPrison.getInstance().getStatsManager();
-            RankingManager rankingManager = MythicPrison.getInstance().getRankingManager();
-            BackpackManager backpackManager = MythicPrison.getInstance().getBackpackManager();
-
-        // Clear existing lines - remove all first to prevent conflicts
-        clearAllLines(sidebar);
-
-        // Using invisible Unicode characters to hide score numbers
-        // Each line uses a different invisible character combination
-        String[] invisibleChars = {
-            "§r", "§r§0", "§r§1", "§r§2", "§r§3", "§r§4", "§r§5", "§r§6", "§r§7", 
-            "§r§8", "§r§9", "§r§a", "§r§b", "§r§c", "§r§d", "§r§e", "§r§f"
-        };
-
-        // Add updated lines with unique invisible suffixes
-        sidebar.createLine(new Sidebar.ScoreboardLine("empty1", Component.text("" + invisibleChars[0]), 14));
-        
-        // Money
-        double money = currencyManager.getBalance(player, "money");
-        sidebar.createLine(new Sidebar.ScoreboardLine("money", 
-            Component.text("§a💰 Money: §f$" + formatNumber(money) + invisibleChars[1]), 13));
-        
-        // Tokens
-        double tokens = currencyManager.getBalance(player, "tokens");
-        sidebar.createLine(new Sidebar.ScoreboardLine("tokens", 
-            Component.text("§b⚡ Tokens: §f" + formatNumber(tokens) + invisibleChars[2]), 12));
-        
-        // Souls
-        double souls = currencyManager.getBalance(player, "souls");
-        sidebar.createLine(new Sidebar.ScoreboardLine("souls", 
-            Component.text("§d👻 Souls: §f" + formatNumber(souls) + invisibleChars[3]), 11));
-        
-        // Beacons
-        double beacons = currencyManager.getBalance(player, "beacons");
-        sidebar.createLine(new Sidebar.ScoreboardLine("beacons", 
-            Component.text("§e🔶 Beacons: §f" + formatNumber(beacons) + invisibleChars[4]), 10));
-        
-        sidebar.createLine(new Sidebar.ScoreboardLine("empty2", Component.text("" + invisibleChars[5]), 9));
-        
-        // Backpack information
-        Backpack backpack = backpackManager.getBackpack(player);
-        if (backpack != null) {
-            sidebar.createLine(new Sidebar.ScoreboardLine("backpack", 
-                Component.text("§6📦 Backpack: §f" + backpack.getCurrentVolume() + "§7/§f" + backpack.getMaxVolume() + invisibleChars[6]), 8));
-        } else {
-            sidebar.createLine(new Sidebar.ScoreboardLine("backpack", 
-                Component.text("§6📦 Backpack: §f0§7/§f1000" + invisibleChars[6]), 8));
+        // Remove existing scoreboard
+        Sidebar oldSidebar = playerScoreboards.get(playerUUID);
+        if (oldSidebar != null) {
+            oldSidebar.removeViewer(player);
+            playerScoreboards.remove(playerUUID);
         }
         
-        // Blocks Mined
-        long blocksMined = statsManager.getBlocksMined(player);
-        sidebar.createLine(new Sidebar.ScoreboardLine("blocks", 
-            Component.text("§7⛏ Blocks: §f" + formatNumber(blocksMined) + invisibleChars[7]), 7));
-        
-        sidebar.createLine(new Sidebar.ScoreboardLine("empty3", Component.text("" + invisibleChars[8]), 6));
-        
-        // Rank - ONLY show base rank (A-Z), not formatted rank with prefixes
-        String baseRank = rankingManager.getRank(player); // This gets just the letter rank
-        sidebar.createLine(new Sidebar.ScoreboardLine("rank", 
-            Component.text("§e⭐ Rank: §f" + baseRank + invisibleChars[9]), 5));
-        
-        // Prestige
-        int prestige = rankingManager.getPrestige(player);
-        sidebar.createLine(new Sidebar.ScoreboardLine("prestige", 
-            Component.text("§6🏆 Prestige: §f" + prestige + invisibleChars[10]), 4));
-        
-        // Rebirth
-        int rebirth = rankingManager.getRebirth(player);
-        sidebar.createLine(new Sidebar.ScoreboardLine("rebirth", 
-            Component.text("§c⚡ Rebirth: §f" + rebirth + invisibleChars[11]), 3));
-        
-        // Ascension
-        int ascension = rankingManager.getAscension(player);
-        sidebar.createLine(new Sidebar.ScoreboardLine("ascension", 
-            Component.text("§5✨ Ascension: §f" + ascension + invisibleChars[12]), 2));
-        
-        sidebar.createLine(new Sidebar.ScoreboardLine("empty4", Component.text("" + invisibleChars[13]), 1));
-        
-        // Online players
-        int onlinePlayers = net.minestom.server.MinecraftServer.getConnectionManager().getOnlinePlayers().size();
-        sidebar.createLine(new Sidebar.ScoreboardLine("online", 
-            Component.text("§a👥 Online: §f" + onlinePlayers + invisibleChars[14]), 0));
+        // Create new scoreboard
+        createScoreboard(player);
         
     } catch (Exception e) {
-        // Fallback to basic scoreboard
-        clearAllLines(sidebar);
-        sidebar.createLine(new Sidebar.ScoreboardLine("error", 
-            Component.text("§cLoading..."), 0));
         System.err.println("[ScoreboardManager] Error updating scoreboard for " + player.getUsername() + ": " + e.getMessage());
         e.printStackTrace();
     }
 }
+
+public void createScoreboard(Player player) {
+    Sidebar sidebar = new Sidebar(Component.text("§d§lPRISON", NamedTextColor.LIGHT_PURPLE));
+    
+    // Build the scoreboard content
+    buildScoreboardContent(player, sidebar);
+    
+    sidebar.addViewer(player);
+    playerScoreboards.put(player.getUuid().toString(), sidebar);
+}
+
+private void buildScoreboardContent(Player player, Sidebar sidebar) {
+    try {
+        // Clear existing lines
+        clearExistingLines(sidebar);
+
+        // Get all required data
+        CurrencyManager currencyManager = MythicPrison.getInstance().getCurrencyManager();
+        RankingManager rankingManager = MythicPrison.getInstance().getRankingManager();
+        BackpackManager backpackManager = MythicPrison.getInstance().getBackpackManager();
+
+        if (currencyManager == null || rankingManager == null || backpackManager == null) {
+            sidebar.createLine(new Sidebar.ScoreboardLine("error", Component.text("§cData loading..."), 15));
+            return;
+        }
+
+        // Initialize backpack manager for player (only this one needs initialization)
+        backpackManager.initializePlayer(player);
+
+        int lineNumber = 15;
+
+        // Get player data
+        double money = currencyManager.getBalance(player, "money");
+        double tokens = currencyManager.getBalance(player, "tokens");
+        double souls = currencyManager.getBalance(player, "souls");
+        
+        String currentRank = rankingManager.getRank(player);
+        int prestiges = rankingManager.getPrestige(player);
+        int rebirths = rankingManager.getRebirth(player);
+        int ascensions = rankingManager.getAscension(player);
+
+        Backpack backpack = backpackManager.getBackpack(player);
+
+        // Empty line at top
+        sidebar.createLine(new Sidebar.ScoreboardLine("empty1", Component.text(""), lineNumber--));
+
+        // Currencies section (NO ICONS - clean text only)
+        sidebar.createLine(new Sidebar.ScoreboardLine("money", Component.text("§7Money: §a" + formatNumber(money)), lineNumber--));
+        sidebar.createLine(new Sidebar.ScoreboardLine("tokens", Component.text("§7Tokens: §6" + formatNumber(tokens)), lineNumber--));
+        sidebar.createLine(new Sidebar.ScoreboardLine("souls", Component.text("§7Souls: §5" + formatNumber(souls)), lineNumber--));
+
+        // Empty line separator
+        sidebar.createLine(new Sidebar.ScoreboardLine("empty2", Component.text(""), lineNumber--));
+
+        // Progression section (WITH SAME ICONS AS CHAT/TAB FORMAT)
+        sidebar.createLine(new Sidebar.ScoreboardLine("rank", Component.text("§7Rank: §f" + currentRank), lineNumber--));
+        sidebar.createLine(new Sidebar.ScoreboardLine("prestiges", Component.text("§7✦ Prestiges: §b" + prestiges), lineNumber--));
+        sidebar.createLine(new Sidebar.ScoreboardLine("rebirths", Component.text("§7⚡ Rebirths: §d" + rebirths), lineNumber--));
+        sidebar.createLine(new Sidebar.ScoreboardLine("ascensions", Component.text("§7⭐ Ascensions: §e" + ascensions), lineNumber--));
+
+        // Empty line separator
+        sidebar.createLine(new Sidebar.ScoreboardLine("empty3", Component.text(""), lineNumber--));
+
+        // Backpack section
+        if (backpack != null) {
+            int currentVolume = backpack.getCurrentVolume();
+            int maxVolume = backpack.getMaxVolume();
+            sidebar.createLine(new Sidebar.ScoreboardLine("backpack", Component.text("§7🎒 Backpack: §f" + currentVolume + "§7/§f" + maxVolume), lineNumber--));
+        } else {
+            sidebar.createLine(new Sidebar.ScoreboardLine("backpack", Component.text("§7🎒 Backpack: §cNot loaded"), lineNumber--));
+        }
+
+        // Online players
+        int onlinePlayers = MinecraftServer.getConnectionManager().getOnlinePlayers().size();
+        sidebar.createLine(new Sidebar.ScoreboardLine("online", Component.text("§7👥 Online: §a" + onlinePlayers), lineNumber--));
+
+        // Empty line at bottom
+        sidebar.createLine(new Sidebar.ScoreboardLine("empty4", Component.text(""), lineNumber--));
+
+    } catch (Exception e) {
+        System.err.println("[ScoreboardManager] Error building scoreboard content: " + e.getMessage());
+        e.printStackTrace();
+        sidebar.createLine(new Sidebar.ScoreboardLine("error", Component.text("§cError loading data"), 15));
+    }
+}
+
+private void clearExistingLines(Sidebar sidebar) {
+    try {
+        // Updated list of all possible line IDs that we might have created
+        String[] lineIds = {
+            "empty_15", "balance", "tokens", "souls", "blocks", "empty_10", "rank", "prestige", 
+            "rebirth", "ascension", "empty_5", "online", "empty_3", "server", "empty_1"
+        };
+        
+        // Remove each line individually (ignore errors if line doesn't exist)
+        for (String lineId : lineIds) {
+            try {
+                sidebar.removeLine(lineId);
+            } catch (Exception e) {
+                // Ignore if line doesn't exist - this is expected
+            }
+        }
+    } catch (Exception e) {
+        // If all else fails, just log and continue
+        System.err.println("[ScoreboardManager] Warning: Could not clear existing lines: " + e.getMessage());
+    }
+}
+
+public void updateAllScoreboards() {
+    try {
+        for (Player player : MinecraftServer.getConnectionManager().getOnlinePlayers()) {
+            updatePlayerScoreboard(player);
+        }
+    } catch (Exception e) {
+        System.err.println("[ScoreboardManager] Error updating all scoreboards: " + e.getMessage());
+    }
+}
+
     private void clearAllLines(Sidebar sidebar) {
         // Clear all possible lines to prevent conflicts
         String[] lineIds = {"empty1", "money", "tokens", "souls", "beacons", "empty2", "backpack", 
@@ -140,28 +171,6 @@ public class ScoreboardManager {
         }
     }
 
-    public void updateAllScoreboards() {
-        try {
-            for (Player player : net.minestom.server.MinecraftServer.getConnectionManager().getOnlinePlayers()) {
-                updatePlayerScoreboard(player);
-            }
-        } catch (Exception e) {
-            System.err.println("[ScoreboardManager] Error updating all scoreboards: " + e.getMessage());
-        }
-    }
-
-    public void updatePlayerScoreboard(Player player) {
-        try {
-            Sidebar sidebar = playerScoreboards.get(player.getUuid().toString());
-            if (sidebar != null) {
-                updateScoreboard(player, sidebar);
-            } else {
-                createScoreboard(player);
-            }
-        } catch (Exception e) {
-            System.err.println("[ScoreboardManager] Error updating scoreboard for " + player.getUsername() + ": " + e.getMessage());
-        }
-    }
 
     public void removeScoreboard(Player player) {
         try {
@@ -174,6 +183,15 @@ public class ScoreboardManager {
         }
     }
 
+public void removePlayerScoreboard(Player player) {
+    String playerUuid = player.getUuid().toString();
+    Sidebar sidebar = playerScoreboards.get(playerUuid);
+    
+    if (sidebar != null) {
+        sidebar.removeViewer(player);
+        playerScoreboards.remove(playerUuid);
+    }
+}
 private String formatNumber(double number) {
     // Handle whole numbers without decimal places
     if (number == Math.floor(number) && !Double.isInfinite(number)) {

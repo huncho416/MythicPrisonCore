@@ -414,15 +414,9 @@ public class SchematicWorldManager {
      * Track a player in a world without teleporting them
      */
     public void trackPlayerInWorld(Player player, String worldName) {
-        if (worlds.containsKey(worldName)) {
-            playerWorlds.put(player.getUuid(), worldName);
-            System.out.println("[DEBUG] Tracking player " + player.getUsername() + " in world: " + worldName);
-        
-            // Update their tracking based on their actual instance to prevent conflicts
-            updatePlayerWorldTracking(player);
-        } else {
-            System.out.println("[DEBUG] Failed to track player " + player.getUsername() + " - world " + worldName + " not found");
-        }
+        playerWorlds.put(player.getUuid(), worldName);
+        // Remove this debug line:
+        // System.out.println("[DEBUG] Tracking player " + player.getUsername() + " in world: " + worldName);
     }
 
     /**
@@ -437,7 +431,6 @@ public class SchematicWorldManager {
                 String expectedWorldName = playerWorlds.get(player.getUuid());
                 if (expectedWorldName == null || actualWorldName.equals(expectedWorldName)) {
                     playerWorlds.put(player.getUuid(), actualWorldName);
-                    System.out.println("[DEBUG] Updated tracking for " + player.getUsername() + " to world: " + actualWorldName);
                 }
             }
         }

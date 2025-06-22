@@ -24,37 +24,7 @@ public class MineCommand extends Command {
             }
             
             Player player = (Player) sender;
-            MineManager mineManager = MythicPrison.getInstance().getMineManager();
-            SchematicWorldManager schematicManager = MythicPrison.getInstance().getSchematicWorldManager();
-            
-            // Auto-teleport to player's mine (create if doesn't exist)
-            if (!mineManager.hasPlayerMine(player)) {
-                mineManager.createPrivateMine(player);
-                ChatUtil.sendSuccess(player, "Created your personal mine!");
-                
-                // Add a small delay to ensure mine is fully created before teleporting
-                MythicPrison.getInstance().getScheduler().schedule(() -> {
-                    mineManager.teleportToMine(player);
-                    
-                    // Ensure player is properly tracked in their mine world
-                    PrivateMine mine = mineManager.getPlayerMine(player);
-                    if (mine != null && schematicManager != null) {
-                        String mineWorldName = "mine_" + player.getUsername().toLowerCase();
-                        schematicManager.trackPlayerInWorld(player, mineWorldName);
-                        System.out.println("[MineCommand] Tracked player " + player.getUsername() + " in world: " + mineWorldName);
-                    }
-                }, 100, java.util.concurrent.TimeUnit.MILLISECONDS);
-            } else {
-                mineManager.teleportToMine(player);
-                
-                // Ensure player is properly tracked in their mine world
-                PrivateMine mine = mineManager.getPlayerMine(player);
-                if (mine != null && schematicManager != null) {
-                    String mineWorldName = "mine_" + player.getUsername().toLowerCase();
-                    schematicManager.trackPlayerInWorld(player, mineWorldName);
-                    System.out.println("[MineCommand] Tracked player " + player.getUsername() + " in world: " + mineWorldName);
-                }
-            }
+            showMineHelp(player);
         });
         
         // Subcommands
@@ -69,12 +39,17 @@ public class MineCommand extends Command {
             String action = context.get(actionArg);
             
             switch (action.toLowerCase()) {
+                case "go" -> executeGo(player);
                 case "info" -> showMineInfo(player);
                 case "upgrade" -> showUpgradeMenu(player);
                 case "public" -> executeTogglePublic(player);
                 case "list" -> executeList(player);
                 case "visit" -> ChatUtil.sendError(player, "Usage: /mine visit <player>");
-                default -> ChatUtil.sendError(player, "Unknown command! Use /mine help for available commands.");
+                case "help" -> showMineHelp(player);
+                default -> {
+                    ChatUtil.sendError(player, "Unknown command! Use /mine help for available commands.");
+                    showMineHelp(player);
+                }
             }
         }, actionArg);
         
@@ -97,9 +72,105 @@ public class MineCommand extends Command {
                 case "remove" -> executeRemovePlayer(player, value);
                 case "visit" -> executeVisit(player, value);
                 case "upgrade" -> executeUpgrade(player, value);
-                default -> ChatUtil.sendError(player, "Unknown command! Use /mine help for available commands.");
+                default -> {
+                    ChatUtil.sendError(player, "Unknown command! Use /mine help for available commands.");
+                    showMineHelp(player);
+                }
             }
         }, actionArg, stringArg);
+    }
+    
+    private void showMineHelp(Player player) {
+        ChatUtil.sendMessage(player, "");
+        ChatUtil.sendMessage(player, "§f§l§m            §r §6§lMINE COMMANDS §r§f§l§m            ");
+        ChatUtil.sendMessage(player, "");
+        ChatUtil.sendMessage(player, "§e§lNavigation:");
+        ChatUtil.sendMessage(player, "§d/mine go §7- Teleport to your mine");
+        ChatUtil.sendMessage(player, "§d/mine visit <player> §7- Visit another player's mine");
+        ChatUtil.sendMessage(player, "§d/mine list §7- List all public mines");
+        ChatUtil.sendMessage(player, "");
+        ChatUtil.sendMessage(player, "§e§lManagement:");
+        ChatUtil.sendMessage(player, "§d/mine info §7- View your mine information");
+        ChatUtil.sendMessage(player, "§d/mine rename <name> §7- Rename your mine");
+        ChatUtil.sendMessage(player, "§d/mine public §7- Toggle public/private access");
+        ChatUtil.sendMessage(player, "§d/mine tax <percent> §7- Set visitor tax rate (0-100%)");
+        ChatUtil.sendMessage(player, "");
+        ChatUtil.sendMessage(player, "§e§lPlayer Access:");
+        ChatUtil.sendMessage(player, "§d/mine add <player> §7- Allow player to access your mine");
+        ChatUtil.sendMessage(player, "§d/mine remove <player> §7- Remove player access");
+        ChatUtil.sendMessage(player, "");
+        ChatUtil.sendMessage(player, "§e§lUpgrades:");
+        ChatUtil.sendMessage(player, "§d/mine upgrade §7- View available upgrades");
+        ChatUtil.sendMessage(player, "§d/mine upgrade size §7- Upgrade mine size");
+        ChatUtil.sendMessage(player, "§d/mine upgrade beacons §7- Upgrade beacon multiplier");
+        ChatUtil.sendMessage(player, "");
+        ChatUtil.sendMessage(player, "§7§oNote: Use §d/mine go §7§oto teleport to your mine!");
+        ChatUtil.sendMessage(player, "§f§l§m                                                    ");
+    }
+    
+    private void executeGo(Player player) {
+        MineManager mineManager = MythicPrison.getInstance().getMineManager();
+        SchematicWorldManager schematicManager = MythicPrison.getInstance().getSchematicWorldManager();
+        
+        // Auto-teleport to player's mine (create if doesn't exist)
+        if (!mineManager.hasPlayerMine(player)) {
+            mineManager.createPrivateMine(player);
+            ChatUtil.sendSuccess(player, "Created your personal mine!");
+            
+            // Add a longer delay to ensure mine is fully created before teleporting
+            MythicPrison.getInstance().getScheduler().schedule(() -> {
+                // Get the mine after creation
+                PrivateMine mine = mineManager.getPlayerMine(player);
+                if (mine != null && schematicManager != null) {
+                    String mineWorldName = "mine_" + player.getUsername().toLowerCase();
+                    
+                    // Track player in world BEFORE teleporting
+                    schematicManager.trackPlayerInWorld(player, mineWorldName);
+
+                    
+                    // Now teleport
+                    mineManager.teleportToMine(player);
+                    
+                    // Add another small delay to ensure teleportation completed, then track again
+                    MythicPrison.getInstance().getScheduler().schedule(() -> {
+                        schematicManager.trackPlayerInWorld(player, mineWorldName);
+
+                        
+                        // Force update the world tracking
+                        String currentWorld = schematicManager.getPlayerWorld(player);
+
+                    }, 50, java.util.concurrent.TimeUnit.MILLISECONDS);
+                }
+            }, 200, java.util.concurrent.TimeUnit.MILLISECONDS); // Increased delay
+        } else {
+            // Get the mine first
+            PrivateMine mine = mineManager.getPlayerMine(player);
+            if (mine != null && schematicManager != null) {
+                String mineWorldName = "mine_" + player.getUsername().toLowerCase();
+                
+                // Track player in world BEFORE teleporting
+                schematicManager.trackPlayerInWorld(player, mineWorldName);
+
+                
+                // Now teleport
+                mineManager.teleportToMine(player);
+                
+                // Add a small delay to ensure teleportation completed, then track again
+                MythicPrison.getInstance().getScheduler().schedule(() -> {
+                    schematicManager.trackPlayerInWorld(player, mineWorldName);
+
+                    
+                    // Force update the world tracking
+                    String currentWorld = schematicManager.getPlayerWorld(player);
+
+                }, 50, java.util.concurrent.TimeUnit.MILLISECONDS);
+            } else {
+                // Fallback - just teleport
+                mineManager.teleportToMine(player);
+            }
+            
+            ChatUtil.sendSuccess(player, "Teleported to your mine!");
+        }
     }
     
     private void showMineInfo(Player player) {
@@ -107,7 +178,7 @@ public class MineCommand extends Command {
         PrivateMine mine = mineManager.getPlayerMine(player);
         
         if (mine == null) {
-            ChatUtil.sendError(player, "You don't have a mine! Use /mine to create one.");
+            ChatUtil.sendError(player, "You don't have a mine! Use /mine go to create one.");
             return;
         }
         
@@ -126,7 +197,7 @@ public class MineCommand extends Command {
         PrivateMine mine = mineManager.getPlayerMine(player);
         
         if (mine == null) {
-            ChatUtil.sendError(player, "You don't have a mine! Use /mine to create one.");
+            ChatUtil.sendError(player, "You don't have a mine! Use /mine go to create one.");
             return;
         }
         
@@ -174,7 +245,7 @@ public class MineCommand extends Command {
         PrivateMine mine = mineManager.getPlayerMine(player);
         
         if (mine == null) {
-            ChatUtil.sendError(player, "You don't have a mine!");
+            ChatUtil.sendError(player, "You don't have a mine! Use /mine go to create one.");
             return;
         }
         
@@ -187,7 +258,7 @@ public class MineCommand extends Command {
         PrivateMine mine = mineManager.getPlayerMine(player);
         
         if (mine == null) {
-            ChatUtil.sendError(player, "You don't have a mine!");
+            ChatUtil.sendError(player, "You don't have a mine! Use /mine go to create one.");
             return;
         }
         
@@ -200,7 +271,7 @@ public class MineCommand extends Command {
         PrivateMine mine = mineManager.getPlayerMine(player);
         
         if (mine == null) {
-            ChatUtil.sendError(player, "You don't have a mine!");
+            ChatUtil.sendError(player, "You don't have a mine! Use /mine go to create one.");
             return;
         }
         
@@ -223,7 +294,7 @@ public class MineCommand extends Command {
         PrivateMine mine = mineManager.getPlayerMine(player);
         
         if (mine == null) {
-            ChatUtil.sendError(player, "You don't have a mine!");
+            ChatUtil.sendError(player, "You don't have a mine! Use /mine go to create one.");
             return;
         }
         
@@ -243,7 +314,7 @@ public class MineCommand extends Command {
         PrivateMine mine = mineManager.getPlayerMine(player);
         
         if (mine == null) {
-            ChatUtil.sendError(player, "You don't have a mine!");
+            ChatUtil.sendError(player, "You don't have a mine! Use /mine go to create one.");
             return;
         }
         
@@ -279,6 +350,7 @@ public class MineCommand extends Command {
         }
         
         targetMine.teleportPlayer(player);
+        ChatUtil.sendSuccess(player, "Teleported to " + targetPlayerName + "'s mine!");
     }
     
     private void executeList(Player player) {
@@ -294,6 +366,7 @@ public class MineCommand extends Command {
         for (PrivateMine mine : publicMines) {
             ChatUtil.sendMessage(player, "§e" + mine.getOwnerName() + " §7- §a" + mine.getMineName());
         }
+        ChatUtil.sendMessage(player, "§7Use §d/mine visit <player> §7to visit their mine!");
     }
     
     private Player findPlayerByName(String playerName) {

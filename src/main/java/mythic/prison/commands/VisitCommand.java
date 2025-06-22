@@ -22,7 +22,7 @@ public class VisitCommand extends Command {
             ChatUtil.sendError(player, "Usage: /visit <location>");
             ChatUtil.sendMessage(player, "§7Available locations:");
             ChatUtil.sendMessage(player, "§7- §dspawn §7- Return to spawn");
-            ChatUtil.sendMessage(player, "§7- §dmine §7- Go to main mine");
+            ChatUtil.sendMessage(player, "§7Use §d/mine go §7to go to your mine");
             ChatUtil.sendMessage(player, "§7Use §d/mine list §7to see all available mines");
         });
 

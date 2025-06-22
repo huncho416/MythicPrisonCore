@@ -51,6 +51,9 @@ public class ProfileManager {
             // Save immediately to update last seen and username
             saveProfileToDatabase(profile);
         });
+
+        // Initialize friends system
+        MythicPrison.getInstance().getFriendsManager().initializePlayer(player);
     }
 
     public void removePlayer(Player player) {
@@ -73,6 +76,9 @@ public class ProfileManager {
             saveProfileToDatabase(profile);
             System.out.println("[ProfileManager] Saved and removed profile for " + player.getUsername());
         }
+
+        // Cleanup friends system
+        MythicPrison.getInstance().getFriendsManager().removePlayer(player);
     }
 
     public PlayerProfile getProfile(Player player) {

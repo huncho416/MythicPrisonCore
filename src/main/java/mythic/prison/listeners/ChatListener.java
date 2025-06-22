@@ -249,7 +249,7 @@ public class ChatListener {
     /**
      * Gets rank color based on rank letter
      */
-    private static String getRankColor(String rank) {
+    public static String getRankColor(String rank) {
         if (rank == null) return "§7";
 
         return switch (rank.toUpperCase()) {

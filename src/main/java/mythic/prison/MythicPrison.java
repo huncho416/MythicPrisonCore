@@ -2,6 +2,8 @@ package mythic.prison;
 
 import mythic.prison.commands.*;
 import mythic.prison.listeners.*;
+import net.kyori.adventure.text.Component;
+import net.minestom.server.MinecraftServer;
 import mythic.prison.managers.*;
 import mythic.prison.database.MongoManager;
 import mythic.prison.database.RedisManager;
@@ -15,9 +17,12 @@ import net.minestom.server.entity.Player;
 import net.minestom.server.event.GlobalEventHandler;
 import net.minestom.server.event.player.*;
 import net.minestom.server.instance.Instance;
+import net.minestom.server.event.player.PlayerChatEvent;
+import net.minestom.server.event.player.PlayerUseItemEvent;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.extras.MojangAuth;
 import net.minestom.server.event.item.ItemDropEvent;
+import net.minestom.server.item.ItemStack;
 
 import java.io.File;
 import java.util.concurrent.Executors;
@@ -51,6 +56,9 @@ public class MythicPrison {
     private Instance mainInstance;
     private ScheduledExecutorService scheduler;
     private File dataFolder;
+
+    // Add this field to your MythicPrison class
+    private FriendsManager friendsManager;
 
     public static void main(String[] args) {
         new MythicPrison().start();
@@ -225,6 +233,9 @@ public class MythicPrison {
             schematicWorldManager = new SchematicWorldManager();
             System.out.println("[MythicPrison] ✓ SchematicWorldManager initialized");
 
+            // In your onEnable() method, add:
+            this.friendsManager = new FriendsManager();
+
             System.out.println("[MythicPrison] ✓ All managers initialized successfully!");
 
         } catch (Exception e) {
@@ -300,253 +311,266 @@ public class MythicPrison {
         }
     }
 
-    private void registerEventListeners() {
-        try {
-            System.out.println("[MythicPrison] Registering event listeners...");
+private void registerEventListeners() {
+    var globalEventHandler = MinecraftServer.getGlobalEventHandler();
 
-            GlobalEventHandler globalEventHandler = MinecraftServer.getGlobalEventHandler();
-            JoinQuitListener joinQuitListener = new JoinQuitListener();
+    // Initialize the JoinQuitListener
+    JoinQuitListener joinQuitListener = new JoinQuitListener();
+    
+    // Register player configuration event (REQUIRED for player spawning)
+    globalEventHandler.addListener(AsyncPlayerConfigurationEvent.class, joinQuitListener::onPlayerConfiguration);
+    
+    // Register join/quit events
+    globalEventHandler.addListener(PlayerSpawnEvent.class, joinQuitListener::onJoin);
+    globalEventHandler.addListener(PlayerDisconnectEvent.class, joinQuitListener::onQuit);
 
-            // Register chat listener FIRST
-            ChatListener.register();
-            System.out.println("[MythicPrison] ✓ Chat listener registered");
-
-            // Handle player configuration and spawning
-            globalEventHandler.addListener(AsyncPlayerConfigurationEvent.class, event -> {
-                final Player player = event.getPlayer();
-                System.out.println("[MythicPrison] Player configuring: " + player.getUsername());
-
-                // Try to get spawn world from SchematicWorldManager first
-                Instance spawnInstance = null;
-                Pos spawnPosition = new Pos(0, 5, 0); // Default fallback position
-
-                if (schematicWorldManager != null) {
-                    SchematicWorld spawnWorld = schematicWorldManager.getWorld("spawn");
-                    if (spawnWorld != null && spawnWorld.getInstance() != null) {
-                        spawnInstance = spawnWorld.getInstance();
-                        spawnPosition = spawnWorld.getSpawnPoint();
-                        System.out.println("[MythicPrison] Using spawn schematic world for player: " + player.getUsername());
-                    }
-                }
-
-                // Final fallback to main instance
-                if (spawnInstance == null) {
-                    spawnInstance = mainInstance;
-                    System.out.println("[MythicPrison] Using main instance for player: " + player.getUsername());
-                }
-
-                event.setSpawningInstance(spawnInstance);
-                player.setRespawnPoint(spawnPosition);
-
-                // Call the listener for additional setup
-                joinQuitListener.onPlayerConfiguration(event);
-            });
-
-            // Handle player spawn
-            globalEventHandler.addListener(PlayerSpawnEvent.class, event -> {
-                final Player player = event.getPlayer();
-                System.out.println("[MythicPrison] Player spawned: " + player.getUsername());
-        
-                // Only ensure player tracking, don't teleport again since they're already in the correct world
-                if (schematicWorldManager != null) {
-                    SchematicWorld spawnWorld = schematicWorldManager.getWorld("spawn");
-                    if (spawnWorld != null && spawnWorld.getInstance() != null) {
-                        // Just track the player in the spawn world, don't teleport
-                        schematicWorldManager.trackPlayerInWorld(player, "spawn");
-                    }
-                }
-        
-                // Call the listener
-                joinQuitListener.onJoin(event);
-        
-                // Give the player their soulbound pickaxe after spawn
-                scheduler.schedule(() -> {
-                    if (pickaxeManager != null) {
-                        pickaxeManager.giveSoulboundPickaxe(player);
-                    }
-                }, 500, TimeUnit.MILLISECONDS); // Small delay to ensure inventory is ready
-            });
-
-            // Handle player disconnect
-            globalEventHandler.addListener(PlayerDisconnectEvent.class, event -> {
-                final Player player = event.getPlayer();
-                System.out.println("[MythicPrison] Player disconnected: " + player.getUsername());
-
-                // Call the listener
-                joinQuitListener.onQuit(event);
-            });
-
-            // Handle block breaking
-            globalEventHandler.addListener(PlayerBlockBreakEvent.class, this::handleBlockBreak);
-
-            // Handle item drop prevention for soulbound pickaxe
-            globalEventHandler.addListener(ItemDropEvent.class, event -> {
-                if (pickaxeManager != null && pickaxeManager.isSoulboundPickaxe(event.getItemStack())) {
-                    event.setCancelled(true);
-                    event.getPlayer().sendMessage("§cYou cannot drop your soulbound pickaxe!");
-                }
-            });
-
-            // Handle inventory click prevention for soulbound pickaxe
-            globalEventHandler.addListener(InventoryPreClickEvent.class, event -> {
-                if (event.getPlayer() instanceof Player) {
-                    Player player = (Player) event.getPlayer();
-                    if (pickaxeManager != null && pickaxeManager.preventPickaxeMovement(event)) {
-                        event.setCancelled(true);
-                        player.sendMessage("§cYou cannot move your soulbound pickaxe!");
-                    }
-                }
-            });
-
-            System.out.println("[MythicPrison] ✓ Event listeners registered!");
-
-        } catch (Exception e) {
-            System.err.println("[MythicPrison] ✗ Error registering event listeners: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
-private void handleBlockBreak(PlayerBlockBreakEvent event) {
-    try {
+    // Chat formatting
+    globalEventHandler.addListener(PlayerChatEvent.class, event -> {
         Player player = event.getPlayer();
-        Block block = event.getBlock();
+        String message = event.getRawMessage(); // Fix: Use getRawMessage() instead of getMessage()
+        
+        // Format the chat message using ChatListener
+        String formattedMessage = mythic.prison.listeners.ChatListener.formatChatMessage(player, message);
+        
+        // Cancel the original event and send formatted message to all players
+        event.setCancelled(true);
+        
+        // Send to all players
+        Component chatComponent = Component.text(formattedMessage);
+        for (Player onlinePlayer : MinecraftServer.getConnectionManager().getOnlinePlayers()) {
+            onlinePlayer.sendMessage(chatComponent);
+        }
+        
+        // Log to console
+        System.out.println("[CHAT] " + formattedMessage);
+    });
 
-        // Get current world player is in
-        String currentWorld = schematicWorldManager.getPlayerWorld(player);
+    // Block break event for mining mechanics
+    globalEventHandler.addListener(PlayerBlockBreakEvent.class, this::handleBlockBreak);
+
+    // Right-click handler for pickaxe enchant menu
+    globalEventHandler.addListener(PlayerUseItemEvent.class, event -> {
+        Player player = event.getPlayer();
+        ItemStack item = event.getItemStack();
         
-        // Debug logging to help identify the issue
-        System.out.println("[DEBUG] Player " + player.getUsername() + " is in world: " + currentWorld);
-        System.out.println("[DEBUG] Player instance: " + (player.getInstance() != null ? player.getInstance().getClass().getSimpleName() : "null"));
+        if (pickaxeManager != null && pickaxeManager.isSoulboundPickaxe(item)) {
+            // Open pickaxe enchant GUI
+            pickaxeManager.handlePickaxeRightClick(player, item);
+            event.setCancelled(true); // Prevent default use behavior
+        }
+    });
+
+    // Item drop prevention for soulbound pickaxe
+    globalEventHandler.addListener(ItemDropEvent.class, event -> {
+        if (pickaxeManager != null && pickaxeManager.isSoulboundPickaxe(event.getItemStack())) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage("§cYou cannot drop your soulbound pickaxe!");
+        }
+    });
+
+    // Inventory protection events - simplified approach
+    globalEventHandler.addListener(InventoryPreClickEvent.class, event -> {
+        Player player = (Player) event.getPlayer();
+        int slot = event.getSlot();
+        PickaxeManager pickaxeManager = getPickaxeManager();
         
-        // Determine if player can break blocks in this location
-        boolean canBreakBlocks = false;
+        // Check for valid slot range to prevent ArrayIndexOutOfBoundsException
+        if (slot < 0 || slot >= player.getInventory().getSize()) {
+            return; // Skip processing for invalid slots
+        }
         
-        if (currentWorld != null) {
-            // Check if player is in their own mine
-            String expectedMineWorld = "mine_" + player.getUsername().toLowerCase();
-            if (currentWorld.equals(expectedMineWorld)) {
-                canBreakBlocks = true;
-                System.out.println("[DEBUG] Player is in their own mine: " + currentWorld);
-            }
-            // Check if player is in someone else's mine and has permission
-            else if (currentWorld.startsWith("mine_")) {
-                // Extract the mine owner's name from the world name
-                String mineOwnerName = currentWorld.substring(5); // Remove "mine_" prefix
-                Player mineOwner = findPlayerByName(mineOwnerName);
+        if (pickaxeManager != null) {
+            try {
+                // Get the item in the clicked slot
+                ItemStack slotItem = player.getInventory().getItemStack(slot);
                 
-                if (mineOwner != null) {
-                    PrivateMine mine = mineManager.getPlayerMine(mineOwner);
-                    if (mine != null && mine.canPlayerAccess(player.getUuid().toString())) {
-                        canBreakBlocks = true;
-                        System.out.println("[DEBUG] Player has access to mine: " + currentWorld);
-                    }
+                // If clicking on slot 0 and it contains a soulbound pickaxe, prevent movement
+                if (slot == 0 && pickaxeManager.isSoulboundPickaxe(slotItem)) {
+                    event.setCancelled(true);
+                    // Don't show message here since right-clicks will be handled by PlayerUseItemEvent
+                }
+                
+                // Prevent placing non-pickaxe items in slot 0
+                if (slot == 0 && !slotItem.isAir() && !pickaxeManager.isSoulboundPickaxe(slotItem)) {
+                    event.setCancelled(true);
+                    player.sendMessage("§cYou can only have your pickaxe in this slot!");
+                }
+            } catch (Exception e) {
+                System.err.println("[MythicPrison] Error in inventory click handler: " + e.getMessage());
+                // Don't print full stack trace for common inventory errors
+            }
+        }
+    });
+
+    globalEventHandler.addListener(PlayerSwapItemEvent.class, event -> {
+        PickaxeManager pickaxeManager = getPickaxeManager();
+        if (pickaxeManager != null && pickaxeManager.preventItemSwap(event)) {
+            event.setCancelled(true);
+        }
+    });
+
+    // Remove the PlayerChangeHeldSlotEvent listener to allow hotbar scrolling
+    /*
+    globalEventHandler.addListener(PlayerChangeHeldSlotEvent.class, event -> {
+        Player player = event.getPlayer();
+        PickaxeManager pickaxeManager = getPickaxeManager();
+        
+        if (pickaxeManager != null) {
+            if (event.getNewSlot() == 0) {
+                ItemStack slotItem = player.getInventory().getItemStack(0);
+                if (pickaxeManager.isSoulboundPickaxe(slotItem)) {
+                    event.setCancelled(true);
                 }
             }
-            // Deny breaking blocks in spawn or any other world
-            else if (currentWorld.equals("spawn") || !currentWorld.startsWith("mine_")) {
-                canBreakBlocks = false;
-                System.out.println("[DEBUG] Player is in protected area: " + currentWorld);
-            }
-        } else {
-            // If currentWorld is null, check if player might be in a mine instance directly
-            Instance playerInstance = player.getInstance();
-            if (playerInstance != null) {
-                // Check all mines to see if this instance belongs to any mine
-                for (var mine : mineManager.getAllMines()) {
-                    if (mine.getMineInstance() == playerInstance) {
-                        if (mine.getOwnerUUID().equals(player.getUuid().toString()) || 
-                            mine.canPlayerAccess(player.getUuid().toString())) {
+        }
+    });
+    */
+}
+
+    private void handleBlockBreak(PlayerBlockBreakEvent event) {
+        try {
+            Player player = event.getPlayer();
+            Block block = event.getBlock();
+
+            // Get current world player is in
+            String currentWorld = schematicWorldManager.getPlayerWorld(player);
+            
+            // Remove these debug lines:
+            
+            // Determine if player can break blocks in this location
+            boolean canBreakBlocks = false;
+            
+            if (currentWorld != null) {
+                // Check if player is in their own mine
+                String expectedMineWorld = "mine_" + player.getUsername().toLowerCase();
+                if (currentWorld.equals(expectedMineWorld)) {
+                    canBreakBlocks = true;
+                    // Remove this debug line:
+                    
+                }
+                // Check if player is in someone else's mine and has permission
+                else if (currentWorld.startsWith("mine_")) {
+                    // Extract the mine owner's name from the world name
+                    String mineOwnerName = currentWorld.substring(5); // Remove "mine_" prefix
+                    Player mineOwner = findPlayerByName(mineOwnerName);
+                    
+                    if (mineOwner != null) {
+                        PrivateMine mine = mineManager.getPlayerMine(mineOwner);
+                        if (mine != null && mine.canPlayerAccess(player.getUuid().toString())) {
                             canBreakBlocks = true;
-                            System.out.println("[DEBUG] Found player in mine instance: " + mine.getMineName());
-                            // Update the world tracking
-                            schematicWorldManager.trackPlayerInWorld(player, mine.getWorldName());
-                            break;
+                            // Remove this debug line:
+                            
                         }
                     }
                 }
-            }
-            
-            if (!canBreakBlocks) {
-                System.out.println("[DEBUG] Could not determine player world, defaulting to no-break");
-            }
-        }
-
-        // Cancel the event if player cannot break blocks here
-        if (!canBreakBlocks) {
-            event.setCancelled(true);
-            // Send message only if player is trying to break blocks in spawn
-            if (currentWorld != null && currentWorld.equals("spawn")) {
-                player.sendMessage("§cYou cannot break blocks at spawn! Use /mine to go to your mine.");
-            } else if (currentWorld != null && currentWorld.startsWith("mine_")) {
-                player.sendMessage("§cYou don't have permission to break blocks in this mine!");
-            } else {
-                player.sendMessage("§cYou cannot break blocks here!");
-            }
-            return;
-        }
-
-        // Allow the block break and process mining logic
-        String blockType = block.registry().material().name();
-
-        // Call mine-specific logic if player is in their own mine
-        String expectedMineWorld = "mine_" + player.getUsername().toLowerCase();
-        if (currentWorld != null && currentWorld.equals(expectedMineWorld)) {
-            mineManager.onBlockBreak(player, blockType);
-        }
-
-        // Add block to backpack
-        backpackManager.initializePlayer(player);
-        Backpack backpack = backpackManager.getBackpack(player);
-
-        if (backpack != null) {
-            if (backpack.getAvailableSpace() > 0) {
-                backpack.addBlock(blockType, 1);
-
-                // Auto-sell if backpack is full or auto-sell is enabled
-                if (backpack.isFull() || backpack.isAutoSellEnabled()) {
-                    backpackManager.sellBackpack(player, false);
+                // Deny breaking blocks in spawn or any other world
+                else if (currentWorld.equals("spawn") || !currentWorld.startsWith("mine_")) {
+                    canBreakBlocks = false;
+                    // Remove this debug line:
+                    
                 }
             } else {
-                // Backpack is full, auto-sell and then add the block
-                backpackManager.sellBackpack(player, true);
-                backpack.addBlock(blockType, 1);
+                // If currentWorld is null, check if player might be in a mine instance directly
+                Instance playerInstance = player.getInstance();
+                if (playerInstance != null) {
+                    // Check all mines to see if this instance belongs to any mine
+                    for (var mine : mineManager.getAllMines()) {
+                        if (mine.getMineInstance() == playerInstance) {
+                            if (mine.getOwnerUUID().equals(player.getUuid().toString()) || 
+                                mine.canPlayerAccess(player.getUuid().toString())) {
+                                canBreakBlocks = true;
+                                // Remove this debug line:
+                                
+                                // Update the world tracking
+                                schematicWorldManager.trackPlayerInWorld(player, mine.getWorldName());
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if (!canBreakBlocks) {
+                    // Remove this debug line:
+                    
+                }
             }
+
+            // Cancel the event if player cannot break blocks here
+            if (!canBreakBlocks) {
+                event.setCancelled(true);
+                // Send message only if player is trying to break blocks in spawn
+                if (currentWorld != null && currentWorld.equals("spawn")) {
+                    player.sendMessage("§cYou cannot break blocks at spawn! Use /mine to go to your mine.");
+                } else if (currentWorld != null && currentWorld.startsWith("mine_")) {
+                    player.sendMessage("§cYou don't have permission to break blocks in this mine!");
+                } else {
+                    player.sendMessage("§cYou cannot break blocks here!");
+                }
+                return;
+            }
+
+            // Allow the block break and process mining logic
+            String blockType = block.registry().material().name();
+
+            // Call mine-specific logic if player is in their own mine
+            String expectedMineWorld = "mine_" + player.getUsername().toLowerCase();
+            if (currentWorld != null && currentWorld.equals(expectedMineWorld)) {
+                mineManager.onBlockBreak(player, blockType);
+            }
+
+            // Add block to backpack
+            backpackManager.initializePlayer(player);
+            Backpack backpack = backpackManager.getBackpack(player);
+
+            if (backpack != null) {
+                if (backpack.getAvailableSpace() > 0) {
+                    backpack.addBlock(blockType, 1);
+
+                    // Auto-sell if backpack is full or auto-sell is enabled
+                    if (backpack.isFull() || backpack.isAutoSellEnabled()) {
+                        backpackManager.sellBackpack(player, false);
+                    }
+                } else {
+                    // Backpack is full, auto-sell and then add the block
+                    backpackManager.sellBackpack(player, true);
+                    backpack.addBlock(blockType, 1);
+                }
+            }
+
+            // Give pickaxe XP for breaking blocks
+            long xpGained = getBlockXP(block);
+            pickaxeManager.addPickaxeExp(player, xpGained);
+
+            // Update stats
+            statsManager.addBlocksMined(player, 1);
+
+            // Give base money reward with mine multipliers
+            double baseReward = getBlockReward(block);
+            double multiplier = multiplierManager.getTotalMultiplier(player, "money");
+            
+            // Apply mine-specific multiplier if player is in their own mine
+            PrivateMine playerMine = mineManager.getPlayerMine(player);
+            if (playerMine != null && currentWorld != null && currentWorld.equals(expectedMineWorld)) {
+                multiplier *= playerMine.getMultiplier();
+                // Apply beacon bonus
+                multiplier += (playerMine.getBeaconLevel() * 0.1);
+            }
+            
+            double finalReward = baseReward * multiplier;
+
+            currencyManager.addBalance(player, "money", finalReward);
+
+            // Check milestones
+            milestoneManager.checkMilestones(player);
+
+            // Update scoreboard
+            scoreboardManager.updatePlayerScoreboard(player);
+
+        } catch (Exception e) {
+            System.err.println("[MythicPrison] Error handling block break: " + e.getMessage());
+            e.printStackTrace();
         }
-
-        // Give pickaxe XP for breaking blocks
-        long xpGained = getBlockXP(block);
-        pickaxeManager.addPickaxeExp(player, xpGained);
-
-        // Update stats
-        statsManager.addBlocksMined(player, 1);
-
-        // Give base money reward with mine multipliers
-        double baseReward = getBlockReward(block);
-        double multiplier = multiplierManager.getTotalMultiplier(player, "money");
-        
-        // Apply mine-specific multiplier if player is in their own mine
-        PrivateMine playerMine = mineManager.getPlayerMine(player);
-        if (playerMine != null && currentWorld != null && currentWorld.equals(expectedMineWorld)) {
-            multiplier *= playerMine.getMultiplier();
-            // Apply beacon bonus
-            multiplier += (playerMine.getBeaconLevel() * 0.1);
-        }
-        
-        double finalReward = baseReward * multiplier;
-
-        currencyManager.addBalance(player, "money", finalReward);
-
-        // Check milestones
-        milestoneManager.checkMilestones(player);
-
-        // Update scoreboard
-        scoreboardManager.updatePlayerScoreboard(player);
-
-    } catch (Exception e) {
-        System.err.println("[MythicPrison] Error handling block break: " + e.getMessage());
-        e.printStackTrace();
     }
-}
 
 // Add this helper method to find players by name
 private Player findPlayerByName(String playerName) {
@@ -585,64 +609,75 @@ private Player findPlayerByName(String playerName) {
     }
 
     private void registerCommands() {
-        System.out.println("[MythicPrison] Registering commands...");
+    System.out.println("[MythicPrison] Registering commands...");
 
+    try {
+        // Register core commands with error handling
+        registerCommandSafely("EconomyCommand", EconomyCommand::register);
+        registerCommandSafely("PayCommand", PayCommand::register);
+        registerCommandSafely("MilestoneCommand", MilestoneCommand::register);
+        registerCommandSafely("StatsCommand", StatsCommand::register);
+        registerCommandSafely("RebirthCommand", RebirthCommand::register);
+        registerCommandSafely("ResetRankCommand", ResetRankCommand::register);
+        registerCommandSafely("AdminCommand", AdminCommand::register);
+        registerCommandSafely("RankupCommand", RankupCommand::register);
+        registerCommandSafely("RankCommand", RankCommand::register);
+        registerCommandSafely("PrestigeCommand", PrestigeCommand::register);
+        registerCommandSafely("AscensionCommand", AscensionCommand::register);
+        registerCommandSafely("AutoRankupCommand", AutoRankupCommand::register);
+        registerCommandSafely("AutoPrestigeCommand", AutoPrestigeCommand::register);
+        registerCommandSafely("AutoRebirthCommand", AutoRebirthCommand::register);
+        registerCommandSafely("BackpackCommand", BackpackCommand::register);
+
+        // Register MineCommand directly (it doesn't use static register method)
         try {
-            // Register core commands with error handling
-            registerCommandSafely("EconomyCommand", EconomyCommand::register);
-            registerCommandSafely("PayCommand", PayCommand::register);
-            registerCommandSafely("MilestoneCommand", MilestoneCommand::register);
-            registerCommandSafely("StatsCommand", StatsCommand::register);
-            registerCommandSafely("RebirthCommand", RebirthCommand::register);
-            registerCommandSafely("ResetRankCommand", ResetRankCommand::register);
-            registerCommandSafely("AdminCommand", AdminCommand::register);
-            registerCommandSafely("RankupCommand", RankupCommand::register);
-            registerCommandSafely("RankCommand", RankCommand::register);
-            registerCommandSafely("PrestigeCommand", PrestigeCommand::register);
-            registerCommandSafely("AscensionCommand", AscensionCommand::register);
-            registerCommandSafely("AutoRankupCommand", AutoRankupCommand::register);
-            registerCommandSafely("AutoPrestigeCommand", AutoPrestigeCommand::register);
-            registerCommandSafely("AutoRebirthCommand", AutoRebirthCommand::register);
-            registerCommandSafely("BackpackCommand", BackpackCommand::register);
-
-            // Register MineCommand directly (it doesn't use static register method)
-            try {
-                MinecraftServer.getCommandManager().register(new MineCommand());
-                System.out.println("[MythicPrison] ✓ MineCommand registered");
-            } catch (Exception e) {
-                System.err.println("[MythicPrison] ✗ Error registering MineCommand: " + e.getMessage());
-            }
-
-            // Register other commands that may or may not exist
-            registerCommandIfExists("RankupMaxCommand");
-            registerCommandIfExists("GameModeCommand");
-            registerCommandIfExists("RebirthMaxCommand");
-            registerCommandIfExists("PrestigeMaxCommand");
-            registerCommandIfExists("FlyCommand");
-            registerCommandIfExists("HelpCommand");
-            registerCommandIfExists("BalanceCommand");
-            registerCommandIfExists("ShopCommand");
-            registerCommandIfExists("GangCommand");
-            registerCommandIfExists("PetCommand");
-            registerCommandIfExists("PickaxeCommand");
-            registerCommandIfExists("MultiplierCommand");
-            registerCommandIfExists("MultiplyersCommand");
-            registerCommandIfExists("AscendCommand");
-            registerCommandIfExists("LeaderboardCommand");
-            registerCommandIfExists("MilestonesCommand");
-            registerCommandIfExists("VisitCommand");
-            registerCommandIfExists("SpawnCommand");
-            registerCommandIfExists("CreativeCommand");
-            registerCommandIfExists("SurvivalCommand");
-            registerCommandIfExists("SchematicCommand");
-
-            System.out.println("[MythicPrison] ✓ All available commands registered successfully!");
-
+            MinecraftServer.getCommandManager().register(new MineCommand());
+            System.out.println("[MythicPrison] ✓ MineCommand registered");
         } catch (Exception e) {
-            System.err.println("[MythicPrison] ✗ Error registering commands: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("[MythicPrison] ✗ Error registering MineCommand: " + e.getMessage());
         }
+
+        // Register FriendsCommand directly (it doesn't use static register method)
+        try {
+            MinecraftServer.getCommandManager().register(new FriendsCommand());
+            System.out.println("[MythicPrison] ✓ FriendsCommand registered");
+        } catch (Exception e) {
+            System.err.println("[MythicPrison] ✗ Error registering FriendsCommand: " + e.getMessage());
+        }
+
+        // Remove this duplicate line that's causing the error
+        // MinecraftServer.getCommandManager().register(new FriendCommand());
+
+        // Register other commands that may or may not exist
+        registerCommandIfExists("RankupMaxCommand");
+        registerCommandIfExists("GameModeCommand");
+        registerCommandIfExists("RebirthMaxCommand");
+        registerCommandIfExists("PrestigeMaxCommand");
+        registerCommandIfExists("FlyCommand");
+        registerCommandIfExists("HelpCommand");
+        registerCommandIfExists("BalanceCommand");
+        registerCommandIfExists("ShopCommand");
+        registerCommandIfExists("GangCommand");
+        registerCommandIfExists("PetCommand");
+        registerCommandIfExists("PickaxeCommand");
+        registerCommandIfExists("MultiplierCommand");
+        registerCommandIfExists("MultiplyersCommand");
+        registerCommandIfExists("AscendCommand");
+        registerCommandIfExists("LeaderboardCommand");
+        registerCommandIfExists("MilestonesCommand");
+        registerCommandIfExists("VisitCommand");
+        registerCommandIfExists("SpawnCommand");
+        registerCommandIfExists("CreativeCommand");
+        registerCommandIfExists("SurvivalCommand");
+        registerCommandIfExists("SchematicCommand");
+
+        System.out.println("[MythicPrison] ✓ All available commands registered successfully!");
+
+    } catch (Exception e) {
+        System.err.println("[MythicPrison] ✗ Error registering commands: " + e.getMessage());
+        e.printStackTrace();
     }
+}
 
     private void registerCommandSafely(String commandName, Runnable registerMethod) {
         try {
@@ -668,38 +703,50 @@ private Player findPlayerByName(String playerName) {
         }
     }
 
-    private void startUpdaters() {
-        try {
-            System.out.println("[MythicPrison] Starting background updaters...");
+private void startUpdaters() {
+    try {
+        System.out.println("[MythicPrison] Starting background updaters...");
 
-            // Scoreboard updater
-            scheduler.scheduleAtFixedRate(() -> {
-                try {
-                    if (scoreboardManager != null) {
-                        scoreboardManager.updateAllScoreboards();
+        // Scoreboard updater
+        scheduler.scheduleAtFixedRate(() -> {
+            try {
+                if (scoreboardManager != null) {
+                    scoreboardManager.updateAllScoreboards();
+                }
+            } catch (Exception e) {
+                System.err.println("[MythicPrison] Error in scoreboard updater: " + e.getMessage());
+            }
+        }, 1, 3, TimeUnit.SECONDS); // Update every 3 seconds
+
+        // Pickaxe validation updater - check every 10 seconds (more frequent)
+        scheduler.scheduleAtFixedRate(() -> {
+            try {
+                if (pickaxeManager != null) {
+                    for (Player player : MinecraftServer.getConnectionManager().getOnlinePlayers()) {
+                        pickaxeManager.validatePlayerPickaxe(player);
                     }
-                } catch (Exception e) {
-                    System.err.println("[MythicPrison] Error in scoreboard updater: " + e.getMessage());
                 }
-            }, 1, 5, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                System.err.println("[MythicPrison] Error in pickaxe validation: " + e.getMessage());
+            }
+        }, 5, 10, TimeUnit.SECONDS); // Check every 10 seconds
 
-            // Tab updater for ping and player counts
-            scheduler.scheduleAtFixedRate(() -> {
-                try {
-                    // Update tab headers and footers every 5 seconds to keep ping and player counts current
-                    mythic.prison.listeners.ChatListener.updateAllTabHeadersFooters();
-                } catch (Exception e) {
-                    System.err.println("Error in tab updater: " + e.getMessage());
-                }
-            }, 5, 5, TimeUnit.SECONDS);
+        // Tab updater for ping and player counts
+        scheduler.scheduleAtFixedRate(() -> {
+            try {
+                mythic.prison.listeners.ChatListener.updateAllTabHeadersFooters();
+            } catch (Exception e) {
+                System.err.println("Error in tab updater: " + e.getMessage());
+            }
+        }, 5, 5, TimeUnit.SECONDS);
 
-            System.out.println("[MythicPrison] ✓ Updaters started!");
+        System.out.println("[MythicPrison] ✓ Updaters started!");
 
-        } catch (Exception e) {
-            System.err.println("[MythicPrison] ✗ Error starting updaters: " + e.getMessage());
-            e.printStackTrace();
-        }
+    } catch (Exception e) {
+        System.err.println("[MythicPrison] ✗ Error starting updaters: " + e.getMessage());
+        e.printStackTrace();
     }
+}
 
     private void shutdown() {
         try {
@@ -820,4 +867,16 @@ private Player findPlayerByName(String playerName) {
     public File getDataFolder() {
         return dataFolder;
     }
+
+    // Add this getter method
+    public FriendsManager getFriendsManager() {
+        return friendsManager;
+    }
+
+// Replace the findPlayerByUsername method with this corrected version:
+private Player findPlayerByUsername(String username) {
+    return MinecraftServer.getConnectionManager().getOnlinePlayers().stream()
+            .filter(p -> p.getUsername().equalsIgnoreCase(username))
+            .findFirst().orElse(null);
+}
 }
